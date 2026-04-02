@@ -20,10 +20,12 @@
 - [安装方式](#-安装方式)
 - [快速开始](#-快速开始)
 - [核心功能](#-核心功能)
+- [多会话记忆](#-多会话记忆)
 - [API 参考](#-api-参考)
 - [CLI 命令](#-cli-命令)
 - [MCP 集成](#-mcp-集成)
 - [项目结构](#-项目结构)
+- [更新日志](#-更新日志)
 - [常见问题](#-常见问题)
 - [贡献指南](#-贡献指南)
 
@@ -261,6 +263,121 @@ harness.run_pipeline("bugfix", bug_report="支付超时")
 
 ---
 
+## 💬 多会话记忆
+
+### 核心概念
+
+多会话记忆允许你在项目开发过程中维护**多个独立的对话会话**，每个会话对应不同的角色，消息历史相互隔离：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      多会话记忆架构                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │ 主开发对话   │  │ 产品经理对话 │  │ 项目经理对话 │          │
+│  │ development │  │ product_    │  │ project_    │          │
+│  │             │  │ manager     │  │ manager     │          │
+│  │ 消息历史 A   │  │ 消息历史 B   │  │ 消息历史 C   │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
+│        ↑                ↑                ↑                  │
+│        └────────────────┴────────────────┘                  │
+│                    独立记忆空间                               │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 使用场景
+
+在开发过程中，你可以：
+- **主开发对话**: 保持核心开发流程不被打断
+- **产品经理对话**: 随时讨论需求变更
+- **项目经理对话**: 汇报进度、协调资源
+- **架构师对话**: 咨询技术方案
+- **测试人员对话**: 反馈测试问题
+
+### 快速上手
+
+```python
+from py_ha import Harness
+
+harness = Harness("电商平台项目")
+
+# 1. 主开发流程
+harness.chat("正在开发购物车功能")
+harness.chat("已完成添加商品功能")
+
+# 2. 需要确认需求，切换到产品经理对话
+harness.switch_session("product_manager")
+harness.chat("购物车需要支持哪些功能？")
+harness.chat("好的，需求已记录")
+
+# 3. 切回主开发，继续工作（之前的消息历史保留）
+harness.switch_session("development")
+harness.chat("需求已确认，继续开发购物车")
+
+# 4. 遇到技术问题，咨询架构师
+harness.switch_session("architect")
+harness.chat("购物车数据应该用 Redis 还是数据库？")
+
+# 5. 切回主开发应用建议
+harness.switch_session("development")
+harness.chat("架构师建议使用 Redis，按此实现")
+
+# 6. 汇报进度给项目经理
+harness.switch_session("project_manager")
+harness.chat("购物车功能已开发完成")
+```
+
+### 会话类型
+
+| 会话类型 | 说明 | 适用场景 |
+|----------|------|----------|
+| `development` | 主开发对话 | 核心开发流程、代码实现 |
+| `product_manager` | 产品经理对话 | 需求讨论、功能确认 |
+| `project_manager` | 项目经理对话 | 进度汇报、资源协调 |
+| `architect` | 架构师对话 | 技术方案、架构评审 |
+| `tester` | 测试人员对话 | 测试反馈、Bug 讨论 |
+| `doc_writer` | 文档管理员对话 | 文档编写、知识库 |
+| `general` | 通用对话 | 其他沟通 |
+
+### 查看会话状态
+
+```python
+# 列出所有会话
+sessions = harness.list_sessions()
+for session in sessions:
+    active = " (当前)" if session.get("is_active") else ""
+    print(f"  {session['name']}{active}: {session['message_count']} 条消息")
+
+# 获取当前会话历史
+history = harness.get_session_history(limit=10)
+for msg in history:
+    print(f"  [{msg['role']}] {msg['content']}")
+
+# 获取会话报告
+print(harness.get_session_report())
+```
+
+输出：
+```
+# 电商平台项目 会话报告
+
+## 所有会话
+
+### 主开发对话 (当前)
+- 类型: development
+- 消息数: 5
+
+### product_manager
+- 类型: product_manager
+- 消息数: 2
+```
+
+### 完整示例
+
+查看 [examples/multi_session_demo.py](examples/multi_session_demo.py) 了解更多使用模式。
+
 ## 📚 API 参考
 
 ### Harness 类
@@ -310,6 +427,19 @@ harness = Harness(project_name="项目名称")
 | `get_status()` | 获取状态 | `dict` |
 | `get_report()` | 获取报告 | `str` |
 | `get_pipeline_status()` | 获取工作流状态 | `dict` |
+
+#### 会话管理
+
+| 方法 | 说明 | 返回值 |
+|------|------|--------|
+| `chat(message, role)` | 在当前会话发送消息 | `dict` |
+| `switch_session(session_type)` | 切换会话类型 | `dict` |
+| `get_current_session()` | 获取当前会话信息 | `dict \| None` |
+| `get_session_history(limit)` | 获取当前会话历史 | `list[dict]` |
+| `list_sessions()` | 列出所有会话 | `list[dict]` |
+| `get_session_report()` | 获取会话报告 | `str` |
+
+**会话类型**: `development`, `product_manager`, `project_manager`, `architect`, `tester`, `doc_writer`, `general`
 
 ### 角色类
 
@@ -457,6 +587,18 @@ py_ha> exit
 | `workflow_status` | 查询状态 | `workflow_id` |
 | `system_status` | 系统状态 | - |
 
+#### 多会话工具
+
+| 工具 | 说明 | 参数 |
+|------|------|------|
+| `session_switch` | 切换会话 | `session_type` |
+| `session_chat` | 发送消息 | `message` |
+| `session_list` | 列出所有会话 | - |
+| `session_history` | 获取会话历史 | `limit` |
+| `session_report` | 获取会话报告 | - |
+
+**会话类型**: `development`, `product_manager`, `project_manager`, `architect`, `tester`, `doc_writer`, `general`
+
 ### 使用示例
 
 在 Claude Code 对话中：
@@ -477,6 +619,7 @@ py_ha> exit
 py_ha/
 ├── src/py_ha/
 │   ├── engine.py              # 主入口 Harness 类
+│   ├── session.py             # 多会话管理模块
 │   ├── cli.py                 # 命令行接口
 │   │
 │   ├── roles/                 # 角色系统
@@ -511,7 +654,8 @@ py_ha/
 ├── tests/                     # 测试文件
 ├── examples/                  # 使用示例
 │   ├── quickstart.py         # 快速入门
-│   └── harness_demo.py       # 完整示例
+│   ├── harness_demo.py       # 完整示例
+│   └── multi_session_demo.py # 多会话记忆示例
 │
 ├── skills/                    # Claude Code Skill
 │   └── py_ha.md              # Skill 定义
@@ -522,6 +666,36 @@ py_ha/
 ├── pyproject.toml             # 项目配置
 └── README.md                  # 本文档
 ```
+
+---
+
+## 📝 更新日志
+
+### v0.2.1 (当前版本)
+
+**新增功能: 多会话记忆**
+
+- 新增 `SessionManager` 模块，支持维护多个独立的对话会话
+- 支持 7 种会话类型：`development`, `product_manager`, `project_manager`, `architect`, `tester`, `doc_writer`, `general`
+- 每个会话拥有独立的消息历史，互不干扰
+- 可在不同会话间自由切换，保持各自上下文
+- Harness 类新增会话管理方法：`chat()`, `switch_session()`, `get_session_history()`, `list_sessions()`, `get_session_report()`
+- MCP Server 新增会话工具：`session_switch`, `session_chat`, `session_list`, `session_history`, `session_report`
+
+**使用场景:**
+
+在开发过程中，可以随时切换到产品经理对话讨论需求，然后切回主开发对话继续工作，所有对话历史独立保存。
+
+### v0.2.0
+
+**初始版本: Harness Engineering Framework**
+
+- 角色驱动协作: 6 种团队角色（Developer, Tester, PM, Architect, DocWriter, ProjectManager）
+- 工作流驱动: 标准流程、功能开发流程、Bug 修复流程
+- JVM 风格记忆管理: 分代堆内存、垃圾回收、热点检测
+- 轻量化存储: Memory/JSON/Markdown 三种存储方式
+- MCP 集成: 提供 Claude Code 工具集成
+- CLI 命令: 命令行交互模式
 
 ---
 
