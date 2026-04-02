@@ -1,20 +1,28 @@
 """
-Product Manager Role - 产品经理角色
+Product Manager Role - 产品经理角色（渐进式披露版）
 
 职责:
 - 需求分析与整理
 - 用户故事编写
-- 优先级排序
-- 产品规划
+- 需求文档维护
+- 需求变更管理
 
-技能:
-- analyze_requirement: 需求分析
-- write_user_story: 编写用户故事
-- prioritize: 优先级排序
-- define_acceptance_criteria: 定义验收标准
+特点:
+- 在独立对话框与用户交互
+- 只维护需求文档
+- 需求变更通过PM协调到其他角色
+- 支持多会话需求讨论
+
+渐进式披露:
+- 项目基本信息
+- 完整需求文档
+- 进度摘要（了解开发进展）
 """
 
 from typing import Any
+from pydantic import BaseModel, Field
+import time
+
 from py_ha.roles.base import (
     AgentRole,
     RoleType,
@@ -23,17 +31,44 @@ from py_ha.roles.base import (
     SkillCategory,
     TaskType,
 )
+from py_ha.project.state import DocumentType
+
+
+class ProductManagerContext(BaseModel):
+    """产品经理上下文"""
+
+    project_name: str = Field(default="", description="项目名称")
+    tech_stack: str = Field(default="", description="技术栈")
+    requirements: str = Field(default="", description="需求文档")
+    progress_summary: str = Field(default="", description="进度摘要")
+    conversation_history: list[dict[str, str]] = Field(default_factory=list, description="对话历史")
 
 
 class ProductManager(AgentRole):
     """
-    产品经理 - 负责需求管理
+    产品经理 - 专注于需求管理
 
     Harness角色定义:
-    - 职责边界: 需求分析、优先级、验收标准
+    - 职责边界: 需求分析、需求文档维护、需求变更管理
     - 技能集: 需求分析、用户故事、优先级
-    - 协作: 向Developer交付需求，验收交付物
+    - 协作: 在独立对话框与用户交互，变更通知PM
+
+    渐进式披露特点:
+    - 只维护需求文档
+    - 看不到设计、开发等详细内容
+    - 只能看到进度摘要
     """
+
+    def __init__(
+        self,
+        role_id: str = "pm_req_1",
+        name: str = "产品经理",
+        context: RoleContext | None = None,
+    ) -> None:
+        super().__init__(role_id=role_id, name=name, context=context)
+        self._pm_context: ProductManagerContext = ProductManagerContext()
+        self._state_manager: Any = None
+        self._pending_changes: list[dict[str, Any]] = []
 
     @property
     def role_type(self) -> RoleType:
@@ -43,12 +78,39 @@ class ProductManager(AgentRole):
     def responsibilities(self) -> list[str]:
         return [
             "需求收集与分析",
+            "需求文档维护",
             "用户故事编写",
             "优先级定义与排序",
             "验收标准制定",
-            "产品路线规划",
-            " stakeholder沟通",
+            "需求变更管理",
         ]
+
+    def set_state_manager(self, state_manager: Any) -> None:
+        """
+        设置项目状态管理器
+
+        Args:
+            state_manager: ProjectStateManager 实例
+        """
+        self._state_manager = state_manager
+
+    def set_context_from_pm(self, context: dict[str, Any]) -> None:
+        """
+        设置来自PM的上下文
+
+        Args:
+            context: PM生成的上下文
+        """
+        self._pm_context = ProductManagerContext(
+            project_name=context.get("project", {}).get("name", ""),
+            tech_stack=context.get("project", {}).get("tech_stack", ""),
+            requirements=context.get("requirements", ""),
+            progress_summary=context.get("progress_summary", ""),
+        )
+
+    def get_visible_context(self) -> dict[str, Any]:
+        """获取可见上下文"""
+        return self._pm_context.model_dump()
 
     def _setup_skills(self) -> None:
         """设置产品技能"""
@@ -82,11 +144,11 @@ class ProductManager(AgentRole):
                 outputs=["acceptance_criteria", "test_scenarios"],
             ),
             RoleSkill(
-                name="create_roadmap",
-                description="创建产品路线图",
-                category=SkillCategory.MANAGEMENT,
-                inputs=["vision", "constraints"],
-                outputs=["roadmap", "milestones"],
+                name="update_requirements",
+                description="更新需求文档",
+                category=SkillCategory.DOCUMENTATION,
+                inputs=["changes"],
+                outputs=["updated_requirements"],
             ),
         ]
 
@@ -111,6 +173,128 @@ class ProductManager(AgentRole):
         if handler:
             return handler()
         return {"status": "error", "message": f"Unsupported task: {task_type}"}
+
+    # ==================== 需求讨论（独立对话框） ====================
+
+    def discuss_with_user(self, message: str) -> str:
+        """
+        与用户讨论需求（在产品经理对话框中调用）
+
+        Args:
+            message: 用户消息
+
+        Returns:
+            回复内容
+        """
+        # 记录对话历史
+        self._pm_context.conversation_history.append({
+            "role": "user",
+            "content": message,
+            "timestamp": str(time.time()),
+        })
+
+        # 分析用户消息，判断是否需要更新需求
+        response = self._analyze_user_message(message)
+
+        # 记录回复
+        self._pm_context.conversation_history.append({
+            "role": "assistant",
+            "content": response,
+            "timestamp": str(time.time()),
+        })
+
+        return response
+
+    def _analyze_user_message(self, message: str) -> str:
+        """
+        分析用户消息
+
+        Args:
+            message: 用户消息
+
+        Returns:
+            分析结果
+        """
+        # 检测是否包含需求变更关键词
+        change_keywords = ["新增", "修改", "删除", "变更", "调整", "优化"]
+        has_change = any(kw in message for kw in change_keywords)
+
+        if has_change:
+            return f"收到您的需求变更。我会更新需求文档并通知项目经理协调开发团队。\n\n当前项目: {self._pm_context.project_name}\n请确认变更详情。"
+        else:
+            return f"理解您的需求。当前项目技术栈: {self._pm_context.tech_stack}。\n请详细描述您的需求，我会整理到需求文档中。"
+
+    # ==================== 需求文档管理 ====================
+
+    def get_requirements(self) -> str:
+        """
+        获取当前需求文档
+
+        Returns:
+            需求文档内容
+        """
+        if self._state_manager:
+            return self._state_manager.get_document(
+                DocumentType.REQUIREMENTS,
+                "product_manager",
+                full=True,
+            ) or ""
+        return self._pm_context.requirements
+
+    def update_requirements(self, new_content: str, change_summary: str = "") -> bool:
+        """
+        更新需求文档
+
+        Args:
+            new_content: 新的需求内容
+            change_summary: 变更摘要
+
+        Returns:
+            是否成功
+        """
+        if self._state_manager:
+            success = self._state_manager.update_document(
+                DocumentType.REQUIREMENTS,
+                new_content,
+                "product_manager",
+                change_summary,
+            )
+            if success:
+                self._pm_context.requirements = new_content
+                # 记录待通知的变更
+                self._pending_changes.append({
+                    "type": "requirements_update",
+                    "summary": change_summary,
+                    "timestamp": time.time(),
+                })
+            return success
+        return False
+
+    def get_requirements_summary(self) -> str:
+        """
+        获取需求摘要（用于传递给其他角色）
+
+        Returns:
+            需求摘要
+        """
+        if self._state_manager:
+            return self._state_manager.get_document_summary(DocumentType.REQUIREMENTS)
+        return self._pm_context.requirements[:500] if self._pm_context.requirements else ""
+
+    def get_pending_changes(self) -> list[dict[str, Any]]:
+        """
+        获取待通知的变更
+
+        Returns:
+            变更列表
+        """
+        return self._pending_changes
+
+    def clear_pending_changes(self) -> None:
+        """清空待通知变更"""
+        self._pending_changes.clear()
+
+    # ==================== 任务执行方法 ====================
 
     def _analyze_requirement(self) -> dict[str, Any]:
         """分析需求"""
@@ -176,8 +360,8 @@ class ProductManager(AgentRole):
 
 
 def create_product_manager(
-    pm_id: str,
-    name: str = "ProductManager",
+    pm_id: str = "pm_req_1",
+    name: str = "产品经理",
     context: RoleContext | None = None,
 ) -> ProductManager:
     """创建产品经理实例"""

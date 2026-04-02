@@ -7,11 +7,12 @@ A Harness Engineering Framework for AI Agent Collaboration
 - 角色驱动协作: Developer/Tester/PM/Architect/DocWriter/ProjectManager
 - 工作流驱动: 需求→设计→开发→测试→文档→发布
 - JVM风格记忆管理: 分代存储、自动GC、热点检测
+- 渐进式披露: 项目经理协调，每个角色只访问相关信息
 - 轻量化设计: 无需数据库/Redis配置
 - 一键执行: 快速完成功能开发/Bug修复
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 # 主入口
 from py_ha.engine import Harness, create_harness
@@ -78,6 +79,16 @@ from py_ha.guide import (
     create_guide,
 )
 
+# Project Module - 项目管理与渐进式披露
+from py_ha.project import (
+    ProjectStateManager,
+    ProjectDocument,
+    ProjectInfo,
+    ProjectStats,
+    DocumentType,
+    create_project_state,
+)
+
 __all__ = [
     # 主入口
     "Harness",
@@ -127,4 +138,11 @@ __all__ = [
     "OnboardingGuide",
     "ProjectConfig",
     "create_guide",
+    # Project
+    "ProjectStateManager",
+    "ProjectDocument",
+    "ProjectInfo",
+    "ProjectStats",
+    "DocumentType",
+    "create_project_state",
 ]
