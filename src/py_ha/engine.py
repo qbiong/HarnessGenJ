@@ -57,6 +57,11 @@ from py_ha.session import (
     Message,
 )
 from py_ha.guide import OnboardingGuide, ProjectConfig
+from py_ha.project import (
+    ProjectStateManager,
+    DocumentType,
+    get_document_region,
+)
 
 
 class HarnessStats(BaseModel):
@@ -139,6 +144,18 @@ class Harness:
 
         # 记忆系统
         self.memory = MemoryManager()
+
+        # 项目状态管理器（核心持久化组件）
+        self.project_state: ProjectStateManager | None = None
+        if persistent:
+            self.project_state = ProjectStateManager(workspace)
+            # 如果项目信息为空，初始化项目名称
+            if not self.project_state.project_info.name:
+                self.project_state.project_info.name = project_name
+                self.project_state._save()
+            else:
+                # 恢复项目名称
+                self.project_name = self.project_state.project_info.name
 
         # 会话管理（支持持久化）
         session_path = os.path.join(workspace, "sessions.json") if persistent else None
@@ -334,6 +351,24 @@ class Harness:
         if not self.coordinator.get_roles_by_type(RoleType.TESTER):
             self.coordinator.create_role(RoleType.TESTER, "test_auto", "测试人员")
 
+        # 记录需求到项目状态
+        if self.project_state:
+            # 追加到需求文档
+            current_req = self.project_state.get_document(
+                DocumentType.REQUIREMENTS, "project_manager", full=True
+            ) or ""
+            new_req = f"\n\n## 功能需求 ({time.strftime('%Y-%m-%d %H:%M')})\n\n{feature_request}\n"
+            self.project_state.update_document(
+                DocumentType.REQUIREMENTS,
+                current_req + new_req,
+                "product_manager",
+                f"新增功能: {feature_request[:50]}..."
+            )
+
+            # 更新进度
+            self.project_state.stats.features_total += 1
+            self.project_state._save()
+
         result = self.coordinator.run_workflow(
             "feature",
             {"feature_request": feature_request},
@@ -349,6 +384,25 @@ class Harness:
                 role="system",
                 importance=70,
             )
+
+            # 更新项目状态
+            if self.project_state:
+                self.project_state.stats.features_completed += 1
+                self.project_state.stats.progress = int(
+                    self.project_state.stats.features_completed /
+                    max(self.project_state.stats.features_total, 1) * 100
+                )
+                # 记录到开发日志
+                current_dev = self.project_state.get_document(
+                    DocumentType.DEVELOPMENT, "project_manager", full=True
+                ) or ""
+                dev_log = f"\n\n## 开发记录 ({time.strftime('%Y-%m-%d %H:%M')})\n\n完成功能: {feature_request}\n"
+                self.project_state.update_document(
+                    DocumentType.DEVELOPMENT,
+                    current_dev + dev_log,
+                    "developer"
+                )
+                self.project_state._save()
 
             # 保存状态
             self._save_state()
@@ -381,6 +435,24 @@ class Harness:
         if not self.coordinator.get_roles_by_type(RoleType.TESTER):
             self.coordinator.create_role(RoleType.TESTER, "test_auto", "测试人员")
 
+        # 记录 Bug 到项目状态
+        if self.project_state:
+            # 追加到测试文档
+            current_test = self.project_state.get_document(
+                DocumentType.TESTING, "project_manager", full=True
+            ) or ""
+            bug_entry = f"\n\n## Bug 报告 ({time.strftime('%Y-%m-%d %H:%M')})\n\n{bug_description}\n\n**状态**: 待修复\n"
+            self.project_state.update_document(
+                DocumentType.TESTING,
+                current_test + bug_entry,
+                "tester",
+                f"新增Bug: {bug_description[:50]}..."
+            )
+
+            # 更新统计
+            self.project_state.stats.bugs_total += 1
+            self.project_state._save()
+
         result = self.coordinator.run_workflow(
             "bugfix",
             {"bug_report": bug_description},
@@ -396,6 +468,21 @@ class Harness:
                 role="system",
                 importance=60,
             )
+
+            # 更新项目状态
+            if self.project_state:
+                self.project_state.stats.bugs_fixed += 1
+                # 记录到开发日志
+                current_dev = self.project_state.get_document(
+                    DocumentType.DEVELOPMENT, "project_manager", full=True
+                ) or ""
+                fix_log = f"\n\n## Bug修复 ({time.strftime('%Y-%m-%d %H:%M')})\n\n修复: {bug_description}\n"
+                self.project_state.update_document(
+                    DocumentType.DEVELOPMENT,
+                    current_dev + fix_log,
+                    "developer"
+                )
+                self.project_state._save()
 
             # 保存状态
             self._save_state()
@@ -555,6 +642,120 @@ class Harness:
         # 再从记忆获取
         return self.memory.get_knowledge(key)
 
+    # ==================== 需求与任务管理 ====================
+
+    def add_requirement(self, requirement: str, priority: str = "P1") -> bool:
+        """
+        添加需求到需求文档
+
+        Args:
+            requirement: 需求描述
+            priority: 优先级 (P0/P1/P2)
+
+        Returns:
+            是否成功
+        """
+        if not self.project_state:
+            return False
+
+        current = self.project_state.get_document(
+            DocumentType.REQUIREMENTS, "project_manager", full=True
+        ) or ""
+
+        new_entry = f"\n\n### 需求 [{priority}] ({time.strftime('%Y-%m-%d %H:%M')})\n\n{requirement}\n"
+
+        return self.project_state.update_document(
+            DocumentType.REQUIREMENTS,
+            current + new_entry,
+            "product_manager",
+            f"新增需求: {requirement[:50]}..."
+        )
+
+    def add_task(self, task: str, assignee: str = "developer") -> bool:
+        """
+        添加任务到开发日志
+
+        Args:
+            task: 任务描述
+            assignee: 分配给谁
+
+        Returns:
+            是否成功
+        """
+        if not self.project_state:
+            return False
+
+        current = self.project_state.get_document(
+            DocumentType.PROGRESS, "project_manager", full=True
+        ) or "# 项目进度\n"
+
+        new_task = f"\n\n## 任务 ({time.strftime('%Y-%m-%d %H:%M')})\n\n- [ ] {task}\n- 分配给: {assignee}\n"
+
+        return self.project_state.update_document(
+            DocumentType.PROGRESS,
+            current + new_task,
+            "project_manager",
+            f"新增任务: {task[:50]}..."
+        )
+
+    def complete_task(self, task: str) -> bool:
+        """
+        标记任务完成
+
+        Args:
+            task: 任务描述（部分匹配）
+
+        Returns:
+            是否成功
+        """
+        if not self.project_state:
+            return False
+
+        current = self.project_state.get_document(
+            DocumentType.PROGRESS, "project_manager", full=True
+        ) or ""
+
+        # 简单替换 [ ] 为 [x]
+        if f"- [ ] {task}" in current:
+            updated = current.replace(f"- [ ] {task}", f"- [x] {task}")
+            return self.project_state.update_document(
+                DocumentType.PROGRESS,
+                updated,
+                "project_manager",
+                f"完成任务: {task[:50]}..."
+            )
+        return False
+
+    def get_requirements(self) -> str:
+        """获取需求文档"""
+        if self.project_state:
+            return self.project_state.get_document(
+                DocumentType.REQUIREMENTS, "project_manager", full=True
+            ) or ""
+        return ""
+
+    def get_progress(self) -> str:
+        """获取进度报告"""
+        if self.project_state:
+            return self.project_state.get_document(
+                DocumentType.PROGRESS, "project_manager", full=True
+            ) or ""
+        return ""
+
+    def get_development_log(self) -> str:
+        """获取开发日志"""
+        if self.project_state:
+            return self.project_state.get_document(
+                DocumentType.DEVELOPMENT, "project_manager", full=True
+            ) or ""
+        return ""
+
+    def get_project_info(self) -> dict[str, Any]:
+        """获取项目信息"""
+        if self.project_state:
+            return self.project_state.get_project_info()
+        return {"name": self.project_name}
+
     # ==================== 状态报告 ====================
 
     def get_status(self) -> dict[str, Any]:
@@ -564,7 +765,7 @@ class Harness:
         Returns:
             状态信息
         """
-        return {
+        status = {
             "project": self.project_name,
             "team": {
                 "size": self._stats.team_size,
@@ -578,6 +779,13 @@ class Harness:
                 "workspace": self._workspace,
             },
         }
+
+        # 添加项目状态信息
+        if self.project_state:
+            status["project_stats"] = self.project_state.get_stats()
+            status["documents"] = self.project_state.list_documents()
+
+        return status
 
     def save(self) -> bool:
         """
@@ -619,6 +827,35 @@ class Harness:
 
         # 同时存储到记忆系统
         self.memory.store_conversation(message, role=role, importance=50)
+
+        # 根据会话类型记录到对应文档
+        if self.project_state:
+            current_session = self.sessions.get_active_session()
+            session_type = current_session.session_type.value if current_session else "general"
+
+            # 根据会话类型选择记录位置
+            if session_type == "development":
+                # 开发对话记录到开发日志
+                current = self.project_state.get_document(
+                    DocumentType.DEVELOPMENT, "project_manager", full=True
+                ) or ""
+                entry = f"\n\n**[{role}]** {message}\n"
+                self.project_state.update_document(
+                    DocumentType.DEVELOPMENT,
+                    current + entry,
+                    "developer"
+                )
+            elif session_type == "product_manager":
+                # 产品对话追加到需求文档末尾
+                current = self.project_state.get_document(
+                    DocumentType.REQUIREMENTS, "project_manager", full=True
+                ) or ""
+                entry = f"\n\n**[{role}]** {message}\n"
+                self.project_state.update_document(
+                    DocumentType.REQUIREMENTS,
+                    current + entry,
+                    "product_manager"
+                )
 
         # 保存状态（会话已由 SessionManager 自动保存）
         self._save_state()
