@@ -8,12 +8,13 @@ Harness - Harness Engineering 主入口
 - Pipeline: 工作流流水线
 - Task: 待执行的任务
 - Session: 多对话会话管理
+- Persistence: 持久化存储，重启后自动恢复
 
 使用示例:
     from py_ha import Harness
 
-    # 创建 Harness 实例
-    harness = Harness()
+    # 创建 Harness 实例（默认持久化）
+    harness = Harness("我的项目")
 
     # 快速开发功能
     result = harness.develop("实现用户登录功能")
@@ -24,11 +25,15 @@ Harness - Harness Engineering 主入口
 
     harness.switch_session("development")
     harness.chat("继续开发...")
+
+    # 下次启动时自动恢复之前的工作内容
 """
 
 from typing import Any
 from pydantic import BaseModel, Field
 import time
+import os
+import json
 
 from py_ha.roles import (
     AgentRole,
@@ -43,7 +48,7 @@ from py_ha.workflow import (
     create_bugfix_pipeline,
 )
 from py_ha.memory import MemoryManager
-from py_ha.storage import create_storage
+from py_ha.storage import create_storage, StorageManager, StorageType
 from py_ha.session import (
     SessionManager,
     SessionType,
@@ -79,8 +84,21 @@ class Harness:
     - chat(): 多对话会话管理
     - switch_session(): 切换对话会话
 
+    持久化支持:
+    - 默认开启持久化，数据保存在 .py_ha/ 目录
+    - 重启后自动加载之前的工作内容
+    - 会话历史、项目配置、记忆都会持久化
+
     使用示例:
-        harness = Harness()
+        # 默认持久化
+        harness = Harness("我的项目")
+
+        # 禁用持久化（仅内存）
+        harness = Harness("我的项目", persistent=False)
+
+        # 自定义存储路径
+        harness = Harness("我的项目", workspace=".my_project")
+
         harness.setup_team()  # 创建默认团队
         result = harness.develop("用户登录功能")
 
@@ -92,19 +110,110 @@ class Harness:
         harness.chat("继续开发...")
     """
 
-    def __init__(self, project_name: str = "Default Project", config_path: str | None = None) -> None:
+    def __init__(
+        self,
+        project_name: str = "Default Project",
+        *,
+        persistent: bool = True,
+        workspace: str = ".py_ha",
+        config_path: str | None = None,
+    ) -> None:
+        """
+        初始化 Harness 实例
+
+        Args:
+            project_name: 项目名称
+            persistent: 是否持久化存储（默认 True）
+            workspace: 工作空间目录（默认 .py_ha）
+            config_path: 配置文件路径（可选）
+        """
         self.project_name = project_name
+        self._workspace = workspace
+        self._persistent = persistent
+
+        # 初始化核心组件
         self.coordinator = WorkflowCoordinator()
+
+        # 存储系统
+        self.storage = create_storage(persistent=persistent, base_path=workspace)
+
+        # 记忆系统
         self.memory = MemoryManager()
-        self.storage = create_storage()
-        self.sessions = SessionManager()  # 多会话管理
+
+        # 会话管理（支持持久化）
+        session_path = os.path.join(workspace, "sessions.json") if persistent else None
+        self.sessions = SessionManager(persist_path=session_path)
+
+        # 统计
         self._stats = HarnessStats()
-        self._guide = OnboardingGuide(config_path)  # 引导系统
+
+        # 引导系统
+        guide_config_path = config_path or os.path.join(workspace, "config.json")
+        self._guide = OnboardingGuide(guide_config_path)
 
         # 注册标准工作流
         self.coordinator.register_workflow("standard", create_standard_pipeline())
         self.coordinator.register_workflow("feature", create_feature_pipeline())
         self.coordinator.register_workflow("bugfix", create_bugfix_pipeline())
+
+        # 尝试加载之前的工作状态
+        if persistent:
+            self._load_state()
+
+    def _load_state(self) -> bool:
+        """加载之前的工作状态"""
+        state_path = os.path.join(self._workspace, "state.json")
+        if not os.path.exists(state_path):
+            return False
+
+        try:
+            with open(state_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # 恢复项目名称
+            if "project_name" in data:
+                self.project_name = data["project_name"]
+
+            # 恢复统计
+            if "stats" in data:
+                self._stats = HarnessStats(**data["stats"])
+
+            return True
+        except (json.JSONDecodeError, KeyError):
+            return False
+
+    def _save_state(self) -> bool:
+        """保存当前工作状态"""
+        if not self._persistent:
+            return False
+
+        try:
+            os.makedirs(self._workspace, exist_ok=True)
+
+            state_path = os.path.join(self._workspace, "state.json")
+            data = {
+                "project_name": self.project_name,
+                "stats": self._stats.model_dump(),
+                "updated_at": time.time(),
+            }
+
+            with open(state_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+
+            # 同时保存会话
+            self.sessions.save()
+
+            return True
+        except Exception:
+            return False
+
+    def is_persistent(self) -> bool:
+        """是否使用持久化存储"""
+        return self._persistent
+
+    def get_workspace(self) -> str:
+        """获取工作空间路径"""
+        return self._workspace
 
     # ==================== 团队管理 ====================
 
@@ -241,6 +350,9 @@ class Harness:
                 importance=70,
             )
 
+            # 保存状态
+            self._save_state()
+
         return {
             "request": feature_request,
             "status": result.get("status"),
@@ -284,6 +396,9 @@ class Harness:
                 role="system",
                 importance=60,
             )
+
+            # 保存状态
+            self._save_state()
 
         return {
             "bug": bug_description,
@@ -419,6 +534,9 @@ class Harness:
 
         self.storage.save_knowledge(key, content)
 
+        # 保存状态
+        self._save_state()
+
     def recall(self, key: str) -> str | None:
         """
         回忆信息
@@ -455,7 +573,20 @@ class Harness:
             "stats": self._stats.model_dump(),
             "memory_health": self.memory.get_health_report()["status"],
             "sessions": self.sessions.get_stats(),
+            "persistence": {
+                "enabled": self._persistent,
+                "workspace": self._workspace,
+            },
         }
+
+    def save(self) -> bool:
+        """
+        手动保存当前工作状态
+
+        Returns:
+            是否保存成功
+        """
+        return self._save_state()
 
     # ==================== 多会话管理 ====================
 
@@ -488,6 +619,9 @@ class Harness:
 
         # 同时存储到记忆系统
         self.memory.store_conversation(message, role=role, importance=50)
+
+        # 保存状态（会话已由 SessionManager 自动保存）
+        self._save_state()
 
         return {
             "message_id": msg.id if msg else None,
@@ -680,6 +814,10 @@ class Harness:
             引导完成的配置信息
         """
         config = self._guide.start(self)
+
+        # 保存状态
+        self._save_state()
+
         return {
             "completed": True,
             "project_name": config.project_name,
@@ -754,14 +892,32 @@ class Harness:
 
 # ==================== 便捷函数 ====================
 
-def create_harness(project_name: str = "Default Project") -> Harness:
+def create_harness(
+    project_name: str = "Default Project",
+    *,
+    persistent: bool = True,
+    workspace: str = ".py_ha",
+) -> Harness:
     """
     创建 Harness 实例
 
     Args:
         project_name: 项目名称
+        persistent: 是否持久化存储（默认 True）
+        workspace: 工作空间目录
 
     Returns:
         Harness 实例
+
+    Examples:
+        # 默认持久化
+        harness = create_harness("我的项目")
+
+        # 禁用持久化
+        harness = create_harness("我的项目", persistent=False)
     """
-    return Harness(project_name=project_name)
+    return Harness(
+        project_name=project_name,
+        persistent=persistent,
+        workspace=workspace,
+    )

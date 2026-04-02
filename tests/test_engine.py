@@ -9,6 +9,8 @@ Engine (Harness) Tests - 测试主入口 Harness API
 """
 
 import pytest
+import tempfile
+import os
 from py_ha import Harness, create_harness, RoleType
 
 
@@ -17,13 +19,13 @@ class TestHarnessCreation:
 
     def test_create_default(self):
         """测试默认创建"""
-        harness = create_harness()
+        harness = create_harness(persistent=False)
         assert harness is not None
         assert harness.project_name == "Default Project"
 
     def test_create_with_name(self):
         """测试带名称创建"""
-        harness = Harness("测试项目")
+        harness = Harness("测试项目", persistent=False)
         assert harness.project_name == "测试项目"
 
 
@@ -32,7 +34,7 @@ class TestTeamManagement:
 
     def test_setup_default_team(self):
         """测试默认团队创建"""
-        harness = Harness()
+        harness = Harness(persistent=False)
         result = harness.setup_team()
 
         assert result["team_size"] == 6
@@ -40,7 +42,7 @@ class TestTeamManagement:
 
     def test_setup_custom_team(self):
         """测试自定义团队"""
-        harness = Harness()
+        harness = Harness(persistent=False)
         result = harness.setup_team({
             "developer": "小李",
             "tester": "小张",
@@ -51,7 +53,7 @@ class TestTeamManagement:
 
     def test_add_role(self):
         """测试添加角色"""
-        harness = Harness()
+        harness = Harness(persistent=False)
         harness.add_role("developer", "新开发")
 
         team = harness.get_team()
@@ -64,7 +66,7 @@ class TestQuickDevelopment:
 
     def test_develop_feature(self):
         """测试功能开发"""
-        harness = Harness()
+        harness = Harness(persistent=False)
         result = harness.develop("实现用户登录功能")
 
         assert result["status"] == "completed"
@@ -72,7 +74,7 @@ class TestQuickDevelopment:
 
     def test_fix_bug(self):
         """测试Bug修复"""
-        harness = Harness()
+        harness = Harness(persistent=False)
         result = harness.fix_bug("登录页面报错")
 
         assert result["status"] == "completed"
@@ -84,7 +86,7 @@ class TestAnalyzeAndDesign:
 
     def test_analyze(self):
         """测试需求分析"""
-        harness = Harness()
+        harness = Harness(persistent=False)
         harness.setup_team()
 
         result = harness.analyze("用户需要一个仪表盘")
@@ -92,7 +94,7 @@ class TestAnalyzeAndDesign:
 
     def test_design(self):
         """测试架构设计"""
-        harness = Harness()
+        harness = Harness(persistent=False)
         harness.setup_team()
 
         result = harness.design("微服务架构系统")
@@ -104,7 +106,7 @@ class TestMemorySystem:
 
     def test_remember_and_recall(self):
         """测试记忆和回忆"""
-        harness = Harness()
+        harness = Harness(persistent=False)
 
         harness.remember("key1", "内容1")
         harness.remember("key2", "重要内容", important=True)
@@ -118,7 +120,7 @@ class TestStatusReport:
 
     def test_get_status(self):
         """测试获取状态"""
-        harness = Harness()
+        harness = Harness(persistent=False)
         harness.setup_team()
         harness.develop("功能1")
 
@@ -128,7 +130,7 @@ class TestStatusReport:
 
     def test_get_report(self):
         """测试获取报告"""
-        harness = Harness("测试项目")
+        harness = Harness("测试项目", persistent=False)
         harness.setup_team()
         harness.develop("功能1")
         harness.fix_bug("Bug1")
@@ -142,7 +144,7 @@ class TestPipelineStatus:
 
     def test_pipeline_status(self):
         """测试工作流状态"""
-        harness = Harness()
+        harness = Harness(persistent=False)
         harness.setup_team()
 
         status = harness.get_pipeline_status()

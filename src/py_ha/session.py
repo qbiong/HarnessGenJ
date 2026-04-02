@@ -32,6 +32,8 @@ from pydantic import BaseModel, Field
 from enum import Enum
 import time
 import uuid
+import json
+import os
 
 
 class SessionType(Enum):
@@ -82,6 +84,27 @@ class Message(BaseModel):
     def is_assistant(self) -> bool:
         """是否是 AI 回复"""
         return self.role == MessageRole.ASSISTANT
+
+    def to_dict(self) -> dict[str, Any]:
+        """转换为字典，用于持久化"""
+        return {
+            "id": self.id,
+            "role": self.role.value,
+            "content": self.content,
+            "timestamp": self.timestamp,
+            "metadata": self.metadata,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Message":
+        """从字典创建，用于加载持久化数据"""
+        return cls(
+            id=data["id"],
+            role=MessageRole(data["role"]),
+            content=data["content"],
+            timestamp=data["timestamp"],
+            metadata=data.get("metadata", {}),
+        )
 
 
 class Session(BaseModel):
@@ -186,6 +209,33 @@ class Session(BaseModel):
         """获取上下文"""
         return self.context.get(key, default)
 
+    def to_dict(self) -> dict[str, Any]:
+        """转换为字典，用于持久化"""
+        return {
+            "id": self.id,
+            "name": self.name,
+            "session_type": self.session_type.value,
+            "messages": [msg.to_dict() for msg in self.messages],
+            "context": self.context,
+            "important_memories": self.important_memories,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Session":
+        """从字典创建，用于加载持久化数据"""
+        return cls(
+            id=data["id"],
+            name=data["name"],
+            session_type=SessionType(data["session_type"]),
+            messages=[Message.from_dict(msg) for msg in data.get("messages", [])],
+            context=data.get("context", {}),
+            important_memories=data.get("important_memories", []),
+            created_at=data.get("created_at", time.time()),
+            updated_at=data.get("updated_at", time.time()),
+        )
+
 
 class SessionManager:
     """
@@ -214,15 +264,20 @@ class SessionManager:
         current = manager.get_active_session()
     """
 
-    def __init__(self) -> None:
+    def __init__(self, persist_path: str | None = None) -> None:
         self._sessions: dict[str, Session] = {}
         self._active_session_id: str | None = None
         self._sessions_by_type: dict[SessionType, list[str]] = {
             st: [] for st in SessionType
         }
+        self._persist_path = persist_path
 
         # 默认创建主开发会话
         self._create_default_sessions()
+
+        # 如果有持久化路径，尝试加载之前的数据
+        if persist_path:
+            self._load_from_disk()
 
     def _create_default_sessions(self) -> None:
         """创建默认会话"""
@@ -234,6 +289,55 @@ class SessionManager:
         self._sessions[dev_session.id] = dev_session
         self._sessions_by_type[SessionType.DEVELOPMENT].append(dev_session.id)
         self._active_session_id = dev_session.id
+
+    def _load_from_disk(self) -> bool:
+        """从磁盘加载会话数据"""
+        if not self._persist_path or not os.path.exists(self._persist_path):
+            return False
+
+        try:
+            with open(self._persist_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # 清空现有会话
+            self._sessions.clear()
+            for st in SessionType:
+                self._sessions_by_type[st] = []
+
+            # 加载会话
+            for session_data in data.get("sessions", []):
+                session = Session.from_dict(session_data)
+                self._sessions[session.id] = session
+                self._sessions_by_type[session.session_type].append(session.id)
+
+            # 恢复活动会话
+            self._active_session_id = data.get("active_session_id")
+
+            return True
+        except (json.JSONDecodeError, KeyError, Exception):
+            return False
+
+    def _save_to_disk(self) -> bool:
+        """保存会话数据到磁盘"""
+        if not self._persist_path:
+            return False
+
+        try:
+            # 确保目录存在
+            os.makedirs(os.path.dirname(self._persist_path), exist_ok=True)
+
+            data = {
+                "sessions": [session.to_dict() for session in self._sessions.values()],
+                "active_session_id": self._active_session_id,
+                "saved_at": time.time(),
+            }
+
+            with open(self._persist_path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+
+            return True
+        except Exception:
+            return False
 
     def create_session(
         self,
@@ -263,6 +367,9 @@ class SessionManager:
         if set_active:
             self._active_session_id = session.id
 
+        # 自动保存
+        self._save_to_disk()
+
         return session
 
     def get_session(self, session_id: str) -> Session | None:
@@ -287,6 +394,7 @@ class SessionManager:
         """
         if session_id in self._sessions:
             self._active_session_id = session_id
+            self._save_to_disk()
             return True
         return False
 
@@ -306,6 +414,7 @@ class SessionManager:
 
         if sessions:
             self._active_session_id = sessions[0]
+            self._save_to_disk()
             return self._sessions[sessions[0]]
 
         # 没有该类型的会话，创建新的
@@ -356,6 +465,7 @@ class SessionManager:
             dev_sessions = self._sessions_by_type[SessionType.DEVELOPMENT]
             self._active_session_id = dev_sessions[0] if dev_sessions else None
 
+        self._save_to_disk()
         return True
 
     def chat(self, content: str, role: MessageRole = MessageRole.USER) -> Message | None:
@@ -371,7 +481,9 @@ class SessionManager:
         """
         session = self.get_active_session()
         if session:
-            return session.add_message(role, content)
+            msg = session.add_message(role, content)
+            self._save_to_disk()
+            return msg
         return None
 
     def get_conversation_history(self, session_id: str | None = None, limit: int = 20) -> list[Message]:
@@ -423,11 +535,31 @@ class SessionManager:
             "sessions_by_type": {
                 st.value: len(ids) for st, ids in self._sessions_by_type.items() if ids
             },
+            "persist_path": self._persist_path,
+            "is_persistent": self._persist_path is not None,
         }
+
+    def save(self) -> bool:
+        """
+        手动保存会话数据
+
+        Returns:
+            是否保存成功
+        """
+        return self._save_to_disk()
+
+    def load(self) -> bool:
+        """
+        手动加载会话数据
+
+        Returns:
+            是否加载成功
+        """
+        return self._load_from_disk()
 
 
 # ==================== 便捷函数 ====================
 
-def create_session_manager() -> SessionManager:
+def create_session_manager(persist_path: str | None = None) -> SessionManager:
     """创建会话管理器"""
-    return SessionManager()
+    return SessionManager(persist_path=persist_path)

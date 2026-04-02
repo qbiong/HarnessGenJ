@@ -410,6 +410,47 @@ print(harness.get_session_report())
 
 查看 [examples/multi_session_demo.py](examples/multi_session_demo.py) 了解更多使用模式。
 
+### 数据持久化
+
+py_ha **默认开启持久化**，所有工作内容会自动保存到 `.py_ha/` 目录：
+
+```
+.py_ha/
+├── config.json      # 项目配置
+├── state.json       # 工作状态
+├── sessions.json    # 会话历史
+└── knowledge/       # 知识库
+```
+
+**重启后自动恢复：**
+```python
+from py_ha import Harness
+
+# 第一次运行
+harness = Harness("电商平台")
+harness.chat("正在开发购物车功能")
+
+# 第二次运行（重启后）
+harness = Harness("电商平台")  # 自动加载之前的工作内容
+# 会话历史、项目配置、记忆都已恢复
+```
+
+**禁用持久化（仅内存）：**
+```python
+# 禁用持久化，所有数据仅在内存中
+harness = Harness("临时项目", persistent=False)
+```
+
+**自定义存储路径：**
+```python
+harness = Harness("我的项目", workspace=".my_workspace")
+```
+
+**手动保存：**
+```python
+harness.save()  # 手动触发保存
+```
+
 ## 📚 API 参考
 
 ### Harness 类
@@ -738,7 +779,40 @@ py_ha/
 
 ## 📝 更新日志
 
-### v0.2.2 (当前版本)
+### v0.2.3 (当前版本)
+
+**新增功能: 完整的持久化存储支持**
+
+- **默认开启持久化**：所有工作内容自动保存到 `.py_ha/` 目录
+- 会话历史持久化：对话记录保存到 `sessions.json`，重启后自动恢复
+- 项目状态持久化：工作状态保存到 `state.json`
+- 知识库持久化：重要信息保存到 `knowledge/` 目录
+- Harness 构造函数新增参数：`persistent`（默认 True）、`workspace`（存储路径）
+- 新增 `save()` 方法支持手动保存
+- `get_status()` 新增 `persistence` 字段显示持久化状态
+
+**存储结构:**
+```
+.py_ha/
+├── config.json      # 项目配置
+├── state.json       # 工作状态
+├── sessions.json    # 会话历史
+└── knowledge/       # 知识库
+```
+
+**使用示例:**
+```python
+# 默认持久化
+harness = Harness("我的项目")
+
+# 禁用持久化
+harness = Harness("临时项目", persistent=False)
+
+# 自定义存储路径
+harness = Harness("我的项目", workspace=".my_workspace")
+```
+
+### v0.2.2
 
 **新增功能: 首次使用引导系统**
 
