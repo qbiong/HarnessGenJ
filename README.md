@@ -123,6 +123,38 @@ pip install -e ".[dev]"
 
 ## 🚀 快速开始
 
+### 首次使用引导
+
+当你第一次使用 py_ha 时，框架会引导你完成项目配置：
+
+```python
+from py_ha import Harness
+
+# 创建 Harness 实例
+harness = Harness()
+
+# 检测是否首次使用
+if harness.is_first_time():
+    # 启动交互式引导
+    harness.start_onboarding()
+else:
+    # 显示欢迎信息
+    print(harness.welcome())
+```
+
+**引导流程包括：**
+1. 项目基础信息配置（名称、描述、技术栈）
+2. 团队角色设置（可使用默认配置或自定义）
+3. 使用方式介绍
+4. 快速上手示例
+5. 项目初始化
+
+**CLI 方式：**
+```bash
+py-ha init     # 启动引导配置
+py-ha welcome  # 显示欢迎信息
+```
+
 ### 一行代码开发功能
 
 ```python
@@ -441,6 +473,31 @@ harness = Harness(project_name="项目名称")
 
 **会话类型**: `development`, `product_manager`, `project_manager`, `architect`, `tester`, `doc_writer`, `general`
 
+#### 引导系统
+
+| 方法 | 说明 | 返回值 |
+|------|------|--------|
+| `is_first_time()` | 检测是否首次使用 | `bool` |
+| `start_onboarding()` | 启动首次使用引导 | `dict` 配置信息 |
+| `welcome()` | 显示欢迎信息 | `str` |
+| `show_help()` | 显示快速帮助 | `None` |
+| `load_project_config()` | 加载项目配置 | `dict \| None` |
+
+**首次使用示例：**
+```python
+harness = Harness()
+
+if harness.is_first_time():
+    # 启动交互式引导
+    harness.start_onboarding()
+else:
+    # 显示欢迎回来信息
+    print(harness.welcome())
+
+# 随时查看帮助
+harness.show_help()
+```
+
 ### 角色类
 
 直接使用角色进行精细控制：
@@ -508,6 +565,14 @@ py-ha --help
 # 查看版本
 py-ha version
 # 输出: py_ha version 0.2.0
+
+# 首次使用引导（推荐新用户使用）
+py-ha init
+# 输出: 交互式引导配置
+
+# 显示欢迎信息
+py-ha welcome
+# 输出: 欢迎回来信息或首次使用提示
 
 # 开发功能
 py-ha develop "实现用户登录功能"
@@ -620,6 +685,7 @@ py_ha/
 ├── src/py_ha/
 │   ├── engine.py              # 主入口 Harness 类
 │   ├── session.py             # 多会话管理模块
+│   ├── guide.py               # 首次使用引导系统
 │   ├── cli.py                 # 命令行接口
 │   │
 │   ├── roles/                 # 角色系统
@@ -655,7 +721,8 @@ py_ha/
 ├── examples/                  # 使用示例
 │   ├── quickstart.py         # 快速入门
 │   ├── harness_demo.py       # 完整示例
-│   └── multi_session_demo.py # 多会话记忆示例
+│   ├── multi_session_demo.py # 多会话记忆示例
+│   └── onboarding_demo.py    # 首次使用引导示例
 │
 ├── skills/                    # Claude Code Skill
 │   └── py_ha.md              # Skill 定义
@@ -671,7 +738,28 @@ py_ha/
 
 ## 📝 更新日志
 
-### v0.2.1 (当前版本)
+### v0.2.2 (当前版本)
+
+**新增功能: 首次使用引导系统**
+
+- 新增 `OnboardingGuide` 模块，提供交互式首次使用引导
+- 引导流程：项目信息收集 → 团队配置 → 使用方式介绍 → 快速上手示例 → 项目初始化
+- 自动检测是否首次使用（`is_first_time()`）
+- 欢迎信息生成（`welcome()`），根据用户状态显示不同内容
+- 快速帮助查看（`show_help()`）
+- 项目配置持久化保存到 `.py_ha/config.json`
+- CLI 新增命令：`py-ha init`、`py-ha welcome`
+
+**使用示例:**
+```python
+harness = Harness()
+if harness.is_first_time():
+    harness.start_onboarding()  # 启动交互式引导
+else:
+    print(harness.welcome())    # 显示欢迎回来信息
+```
+
+### v0.2.1
 
 **新增功能: 多会话记忆**
 

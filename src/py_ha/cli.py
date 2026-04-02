@@ -4,10 +4,12 @@ py_ha CLI - Command Line Interface
 Usage:
     py-ha --help
     py-ha version
+    py-ha init                     # 首次使用引导
     py-ha develop "实现用户登录功能"
     py-ha fix "登录页面报错"
     py-ha team
     py-ha status
+    py-ha interactive
 """
 
 import argparse
@@ -22,6 +24,18 @@ def cmd_version(args: Any) -> None:
     print(f"py_ha version {__version__}")
     print("Python Harness for AI Agents")
     print("A Harness Engineering Framework")
+
+
+def cmd_init(args: Any) -> None:
+    """首次使用引导"""
+    harness = Harness(args.project or "")
+    harness.start_onboarding()
+
+
+def cmd_welcome(args: Any) -> None:
+    """显示欢迎信息"""
+    harness = Harness(args.project or "CLI Project")
+    print(harness.welcome())
 
 
 def cmd_develop(args: Any) -> None:
@@ -139,6 +153,12 @@ def main() -> None:
     # version 命令
     subparsers.add_parser("version", help="显示版本")
 
+    # init 命令 - 首次使用引导
+    subparsers.add_parser("init", help="首次使用引导，配置项目信息")
+
+    # welcome 命令 - 显示欢迎信息
+    subparsers.add_parser("welcome", help="显示欢迎信息和快速提示")
+
     # develop 命令
     develop_parser = subparsers.add_parser("develop", help="开发功能")
     develop_parser.add_argument("feature", help="功能描述")
@@ -164,6 +184,8 @@ def main() -> None:
 
     commands = {
         "version": cmd_version,
+        "init": cmd_init,
+        "welcome": cmd_welcome,
         "develop": cmd_develop,
         "fix": cmd_fix,
         "team": cmd_team,

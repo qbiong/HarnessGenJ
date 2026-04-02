@@ -71,6 +71,13 @@ from py_ha.storage import (
 )
 from py_ha.storage.manager import StorageType, create_storage
 
+# Guide Module - 首次使用引导
+from py_ha.guide import (
+    OnboardingGuide,
+    ProjectConfig,
+    create_guide,
+)
+
 __all__ = [
     # 主入口
     "Harness",
@@ -116,4 +123,8 @@ __all__ = [
     "MemoryStorage",
     "JsonStorage",
     "MarkdownStorage",
+    # Guide
+    "OnboardingGuide",
+    "ProjectConfig",
+    "create_guide",
 ]

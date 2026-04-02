@@ -51,6 +51,7 @@ from py_ha.session import (
     MessageRole,
     Message,
 )
+from py_ha.guide import OnboardingGuide, ProjectConfig
 
 
 class HarnessStats(BaseModel):
@@ -91,13 +92,14 @@ class Harness:
         harness.chat("继续开发...")
     """
 
-    def __init__(self, project_name: str = "Default Project") -> None:
+    def __init__(self, project_name: str = "Default Project", config_path: str | None = None) -> None:
         self.project_name = project_name
         self.coordinator = WorkflowCoordinator()
         self.memory = MemoryManager()
         self.storage = create_storage()
         self.sessions = SessionManager()  # 多会话管理
         self._stats = HarnessStats()
+        self._guide = OnboardingGuide(config_path)  # 引导系统
 
         # 注册标准工作流
         self.coordinator.register_workflow("standard", create_standard_pipeline())
@@ -651,6 +653,103 @@ class Harness:
 - 记忆系统: {status['memory_health']}
 """
         return report.strip()
+
+    # ==================== 引导系统 ====================
+
+    def is_first_time(self) -> bool:
+        """
+        检测是否首次使用
+
+        Returns:
+            True 如果是首次使用（没有完成引导）
+        """
+        return self._guide.is_first_time()
+
+    def start_onboarding(self) -> dict[str, Any]:
+        """
+        启动首次使用引导
+
+        引导流程包括:
+        1. 项目信息收集
+        2. 团队角色配置
+        3. 使用方式介绍
+        4. 快速上手示例
+        5. 项目初始化
+
+        Returns:
+            引导完成的配置信息
+        """
+        config = self._guide.start(self)
+        return {
+            "completed": True,
+            "project_name": config.project_name,
+            "project_description": config.project_description,
+            "tech_stack": config.tech_stack,
+            "team_config": config.team_config,
+        }
+
+    def load_project_config(self) -> dict[str, Any] | None:
+        """
+        加载项目配置
+
+        Returns:
+            项目配置，如果没有返回 None
+        """
+        config = self._guide.load_config()
+        if config:
+            return {
+                "project_name": config.project_name,
+                "project_description": config.project_description,
+                "tech_stack": config.tech_stack,
+                "team_config": config.team_config,
+                "onboarding_completed": config.onboarding_completed,
+            }
+        return None
+
+    def show_help(self) -> None:
+        """
+        显示快速帮助信息
+        """
+        self._guide.show_quick_help()
+
+    def welcome(self) -> str:
+        """
+        生成欢迎信息和使用提示
+
+        Returns:
+            格式化的欢迎信息
+        """
+        config = self.load_project_config()
+
+        if config and config.get("onboarding_completed"):
+            # 已完成引导，显示项目欢迎信息
+            return f"""
+欢迎回来，{config['project_name']}！
+
+项目状态:
+  - 团队规模: {self._stats.team_size} 人
+  - 开发功能: {self._stats.features_developed} 个
+  - 修复Bug: {self._stats.bugs_fixed} 个
+
+快速提示:
+  - 使用 harness.chat('你的需求') 开始对话
+  - 使用 harness.develop('功能') 快速开发
+  - 使用 harness.show_help() 查看更多帮助
+
+准备好继续开发了吗？
+"""
+        else:
+            # 首次使用，引导用户
+            return """
+欢迎使用 py_ha！
+
+看起来你是第一次使用，让我帮你快速上手：
+  - 使用 harness.start_onboarding() 开始引导配置
+  - 使用 harness.show_help() 查看快速帮助
+  - 或直接使用 harness.develop('功能描述') 开始开发
+
+准备好了吗？开始你的 AI Agent 开发之旅吧！
+"""
 
 
 # ==================== 便捷函数 ====================
