@@ -157,9 +157,13 @@ class Harness:
                 # 恢复项目名称
                 self.project_name = self.project_state.project_info.name
 
-        # 会话管理（支持持久化）
+        # 会话管理（支持持久化）- 默认使用项目经理会话
         session_path = os.path.join(workspace, "sessions.json") if persistent else None
         self.sessions = SessionManager(persist_path=session_path)
+
+        # 确保默认会话是项目经理（用户通过项目经理对接）
+        if not self.sessions.get_active_session():
+            self.sessions.switch_session(SessionType.PROJECT_MANAGER)
 
         # 统计
         self._stats = HarnessStats()
@@ -330,9 +334,9 @@ class Harness:
 
     def develop(self, feature_request: str) -> dict[str, Any]:
         """
-        快速开发功能
+        快速开发功能（通过项目经理调度）
 
-        一键完成: 需求分析 → 开发实现 → 测试验证
+        流程: 项目经理接收 → 分配任务 → 开发实现 → 测试验证 → 项目经理确认
 
         Args:
             feature_request: 功能需求描述
@@ -343,37 +347,22 @@ class Harness:
         Examples:
             result = harness.develop("实现用户登录功能")
         """
-        # 确保有足够的角色
-        if not self.coordinator.get_roles_by_type(RoleType.PRODUCT_MANAGER):
-            self.coordinator.create_role(RoleType.PRODUCT_MANAGER, "pm_auto", "产品经理")
+        # 1. 项目经理接收请求
+        task_info = self.receive_request(feature_request, request_type="feature")
+
+        # 2. 确保有开发团队
         if not self.coordinator.get_roles_by_type(RoleType.DEVELOPER):
             self.coordinator.create_role(RoleType.DEVELOPER, "dev_auto", "开发人员")
         if not self.coordinator.get_roles_by_type(RoleType.TESTER):
             self.coordinator.create_role(RoleType.TESTER, "test_auto", "测试人员")
 
-        # 记录需求到项目状态
-        if self.project_state:
-            # 追加到需求文档
-            current_req = self.project_state.get_document(
-                DocumentType.REQUIREMENTS, "project_manager", full=True
-            ) or ""
-            new_req = f"\n\n## 功能需求 ({time.strftime('%Y-%m-%d %H:%M')})\n\n{feature_request}\n"
-            self.project_state.update_document(
-                DocumentType.REQUIREMENTS,
-                current_req + new_req,
-                "product_manager",
-                f"新增功能: {feature_request[:50]}..."
-            )
-
-            # 更新进度
-            self.project_state.stats.features_total += 1
-            self.project_state._save()
-
+        # 3. 执行开发工作流
         result = self.coordinator.run_workflow(
             "feature",
             {"feature_request": feature_request},
         )
 
+        # 4. 项目经理更新状态
         if result.get("status") == "completed":
             self._stats.features_developed += 1
             self._stats.workflows_completed += 1
@@ -385,30 +374,21 @@ class Harness:
                 importance=70,
             )
 
-            # 更新项目状态
-            if self.project_state:
-                self.project_state.stats.features_completed += 1
-                self.project_state.stats.progress = int(
-                    self.project_state.stats.features_completed /
-                    max(self.project_state.stats.features_total, 1) * 100
+            # 项目经理标记任务完成
+            if self.project_state and task_info.get("task_id"):
+                self.complete_task(
+                    task_info["task_id"],
+                    summary=f"功能开发完成: {feature_request[:50]}"
                 )
-                # 记录到开发日志
-                current_dev = self.project_state.get_document(
-                    DocumentType.DEVELOPMENT, "project_manager", full=True
-                ) or ""
-                dev_log = f"\n\n## 开发记录 ({time.strftime('%Y-%m-%d %H:%M')})\n\n完成功能: {feature_request}\n"
-                self.project_state.update_document(
-                    DocumentType.DEVELOPMENT,
-                    current_dev + dev_log,
-                    "developer"
-                )
-                self.project_state._save()
 
             # 保存状态
             self._save_state()
 
         return {
             "request": feature_request,
+            "task_id": task_info.get("task_id"),
+            "priority": task_info.get("priority"),
+            "assignee": task_info.get("assignee"),
             "status": result.get("status"),
             "stages_completed": len(result.get("results", [])),
             "artifacts": result.get("artifacts", []),
@@ -416,9 +396,9 @@ class Harness:
 
     def fix_bug(self, bug_description: str) -> dict[str, Any]:
         """
-        快速修复 Bug
+        快速修复 Bug（通过项目经理调度）
 
-        一键完成: Bug分析 → 代码修复 → 验证测试
+        流程: 项目经理接收 → 分配任务 → Bug分析 → 代码修复 → 验证测试
 
         Args:
             bug_description: Bug 描述
@@ -429,35 +409,22 @@ class Harness:
         Examples:
             result = harness.fix_bug("登录页面无法提交表单")
         """
-        # 确保有足够的角色
+        # 1. 项目经理接收请求
+        task_info = self.receive_request(bug_description, request_type="bug")
+
+        # 2. 确保有开发团队
         if not self.coordinator.get_roles_by_type(RoleType.DEVELOPER):
             self.coordinator.create_role(RoleType.DEVELOPER, "dev_auto", "开发人员")
         if not self.coordinator.get_roles_by_type(RoleType.TESTER):
             self.coordinator.create_role(RoleType.TESTER, "test_auto", "测试人员")
 
-        # 记录 Bug 到项目状态
-        if self.project_state:
-            # 追加到测试文档
-            current_test = self.project_state.get_document(
-                DocumentType.TESTING, "project_manager", full=True
-            ) or ""
-            bug_entry = f"\n\n## Bug 报告 ({time.strftime('%Y-%m-%d %H:%M')})\n\n{bug_description}\n\n**状态**: 待修复\n"
-            self.project_state.update_document(
-                DocumentType.TESTING,
-                current_test + bug_entry,
-                "tester",
-                f"新增Bug: {bug_description[:50]}..."
-            )
-
-            # 更新统计
-            self.project_state.stats.bugs_total += 1
-            self.project_state._save()
-
+        # 3. 执行修复工作流
         result = self.coordinator.run_workflow(
             "bugfix",
             {"bug_report": bug_description},
         )
 
+        # 4. 项目经理更新状态
         if result.get("status") == "completed":
             self._stats.bugs_fixed += 1
             self._stats.workflows_completed += 1
@@ -469,26 +436,21 @@ class Harness:
                 importance=60,
             )
 
-            # 更新项目状态
-            if self.project_state:
-                self.project_state.stats.bugs_fixed += 1
-                # 记录到开发日志
-                current_dev = self.project_state.get_document(
-                    DocumentType.DEVELOPMENT, "project_manager", full=True
-                ) or ""
-                fix_log = f"\n\n## Bug修复 ({time.strftime('%Y-%m-%d %H:%M')})\n\n修复: {bug_description}\n"
-                self.project_state.update_document(
-                    DocumentType.DEVELOPMENT,
-                    current_dev + fix_log,
-                    "developer"
+            # 项目经理标记任务完成
+            if self.project_state and task_info.get("task_id"):
+                self.complete_task(
+                    task_info["task_id"],
+                    summary=f"Bug修复完成: {bug_description[:50]}"
                 )
-                self.project_state._save()
 
             # 保存状态
             self._save_state()
 
         return {
             "bug": bug_description,
+            "task_id": task_info.get("task_id"),
+            "priority": task_info.get("priority"),
+            "assignee": task_info.get("assignee"),
             "status": result.get("status"),
             "stages_completed": len(result.get("results", [])),
         }
@@ -644,6 +606,233 @@ class Harness:
 
     # ==================== 智能记录（核心方法） ====================
 
+    def receive_request(self, request: str, request_type: str = "feature") -> dict[str, Any]:
+        """
+        项目经理接收用户请求（核心入口方法）
+
+        这是 AI 对话的主要入口，项目经理负责：
+        1. 接收用户需求/Bug报告
+        2. 分配优先级和负责人
+        3. 更新项目文档和统计
+        4. 创建任务并安排执行
+
+        Args:
+            request: 用户请求内容
+            request_type: 请求类型 (feature/bug/task/discussion)
+
+        Returns:
+            处理结果，包含任务ID、优先级、负责人等信息
+
+        Examples:
+            # 用户提出需求
+            harness.receive_request("我需要一个用户登录功能")
+
+            # 用户报告 Bug
+            harness.receive_request("登录页面验证码显示异常", request_type="bug")
+        """
+        if not self.project_state:
+            return {"success": False, "error": "项目状态未初始化"}
+
+        timestamp = time.strftime('%Y-%m-%d %H:%M')
+        task_id = f"TASK-{int(time.time())}"
+
+        # 根据请求类型分配优先级和负责人
+        if request_type == "bug":
+            priority = "P0"  # Bug 默认高优先级
+            assignee = "developer"
+            doc_type = DocumentType.TESTING
+            category = "Bug修复"
+        elif request_type == "feature":
+            priority = "P1"  # 功能默认中优先级
+            assignee = "developer"
+            doc_type = DocumentType.REQUIREMENTS
+            category = "功能开发"
+        else:
+            priority = "P2"
+            assignee = "developer"
+            doc_type = DocumentType.REQUIREMENTS
+            category = "任务"
+
+        # 1. 更新需求/测试文档（结构化格式）
+        current_doc = self.project_state.get_document(
+            doc_type, "project_manager", full=True
+        ) or self._get_doc_header(doc_type)
+
+        new_entry = f"""
+### {category} [{priority}] ({timestamp})
+
+**任务ID**: {task_id}
+**描述**: {request}
+**负责人**: {assignee}
+**状态**: 待处理
+
+---
+"""
+        self.project_state.update_document(
+            doc_type,
+            current_doc + new_entry,
+            "project_manager",
+            f"新增{category}: {request[:30]}..."
+        )
+
+        # 2. 更新进度文档
+        progress_doc = self.project_state.get_document(
+            DocumentType.PROGRESS, "project_manager", full=True
+        ) or "# 项目进度\n"
+
+        task_entry = f"""
+## {task_id} - {category}
+
+- **内容**: {request}
+- **优先级**: {priority}
+- **负责人**: {assignee}
+- **状态**: 待处理
+- **创建时间**: {timestamp}
+
+"""
+        self.project_state.update_document(
+            DocumentType.PROGRESS,
+            progress_doc + task_entry,
+            "project_manager",
+            f"创建任务: {task_id}"
+        )
+
+        # 3. 更新项目统计
+        if request_type == "bug":
+            self.project_state.stats.bugs_total += 1
+        else:
+            self.project_state.stats.features_total += 1
+
+        self.project_state.project_info.updated_at = time.time()
+        self.project_state._save()
+
+        # 4. 保存 Harness 状态
+        self._save_state()
+
+        return {
+            "success": True,
+            "task_id": task_id,
+            "priority": priority,
+            "assignee": assignee,
+            "category": category,
+            "status": "待处理",
+            "timestamp": timestamp,
+            "message": f"项目经理已接收请求，任务 {task_id} 已分配给 {assignee}，优先级 {priority}"
+        }
+
+    def _get_doc_header(self, doc_type: str) -> str:
+        """获取文档标题"""
+        headers = {
+            DocumentType.REQUIREMENTS: "# 项目需求\n\n本文档记录所有功能需求和用户故事。\n",
+            DocumentType.TESTING: "# 测试报告\n\n本文档记录 Bug 报告和测试结果。\n",
+            DocumentType.DEVELOPMENT: "# 开发日志\n\n本文档记录开发过程和技术决策。\n",
+            DocumentType.PROGRESS: "# 项目进度\n\n本文档记录任务进度和里程碑。\n",
+            DocumentType.DESIGN: "# 设计文档\n\n本文档记录系统架构和设计方案。\n",
+        }
+        return headers.get(doc_type, "# 文档\n")
+
+    def assign_task(self, task_id: str, assignee: str, priority: str = None) -> bool:
+        """
+        项目经理分配任务
+
+        Args:
+            task_id: 任务ID
+            assignee: 负责人
+            priority: 可选的新优先级
+
+        Returns:
+            是否成功
+        """
+        if not self.project_state:
+            return False
+
+        # 更新进度文档中的任务
+        progress = self.project_state.get_document(
+            DocumentType.PROGRESS, "project_manager", full=True
+        ) or ""
+
+        if task_id in progress:
+            # 更新负责人
+            import re
+            if assignee:
+                progress = re.sub(
+                    rf'(\*\*负责人\*\*:\s*)\w+',
+                    f'**负责人**: {assignee}',
+                    progress
+                )
+            if priority:
+                progress = re.sub(
+                    rf'(\*\*优先级\*\*:\s*)P\d',
+                    f'**优先级**: {priority}',
+                    progress
+                )
+
+            self.project_state.update_document(
+                DocumentType.PROGRESS,
+                progress,
+                "project_manager",
+                f"分配任务 {task_id} 给 {assignee}"
+            )
+            self.project_state._save()
+            return True
+
+        return False
+
+    def complete_task(self, task_id: str, summary: str = "") -> bool:
+        """
+        项目经理标记任务完成
+
+        Args:
+            task_id: 任务ID
+            summary: 完成摘要
+
+        Returns:
+            是否成功
+        """
+        if not self.project_state:
+            return False
+
+        timestamp = time.strftime('%Y-%m-%d %H:%M')
+
+        # 更新进度文档
+        progress = self.project_state.get_document(
+            DocumentType.PROGRESS, "project_manager", full=True
+        ) or ""
+
+        if task_id in progress:
+            import re
+            # 更新状态
+            progress = re.sub(
+                rf'(\*\*状态\*\*:\s*)\S+',
+                f'**状态**: 已完成',
+                progress
+            )
+
+            # 添加完成记录
+            completion_note = f"\n  - **完成时间**: {timestamp}"
+            if summary:
+                completion_note += f"\n  - **完成说明**: {summary}"
+
+            self.project_state.update_document(
+                DocumentType.PROGRESS,
+                progress + completion_note,
+                "project_manager",
+                f"完成任务: {task_id}"
+            )
+
+            # 更新统计
+            self.project_state.stats.features_completed += 1
+            self.project_state.stats.progress = int(
+                self.project_state.stats.features_completed /
+                max(self.project_state.stats.features_total, 1) * 100
+            )
+            self.project_state._save()
+            self._save_state()
+
+            return True
+
+        return False
+
     def record(self, content: str, context: str = "") -> bool:
         """
         智能记录内容到项目文档（自动识别类型）
@@ -796,61 +985,6 @@ class Harness:
             f"新增需求: {requirement[:50]}..."
         )
 
-    def add_task(self, task: str, assignee: str = "developer") -> bool:
-        """
-        添加任务到开发日志
-
-        Args:
-            task: 任务描述
-            assignee: 分配给谁
-
-        Returns:
-            是否成功
-        """
-        if not self.project_state:
-            return False
-
-        current = self.project_state.get_document(
-            DocumentType.PROGRESS, "project_manager", full=True
-        ) or "# 项目进度\n"
-
-        new_task = f"\n\n## 任务 ({time.strftime('%Y-%m-%d %H:%M')})\n\n- [ ] {task}\n- 分配给: {assignee}\n"
-
-        return self.project_state.update_document(
-            DocumentType.PROGRESS,
-            current + new_task,
-            "project_manager",
-            f"新增任务: {task[:50]}..."
-        )
-
-    def complete_task(self, task: str) -> bool:
-        """
-        标记任务完成
-
-        Args:
-            task: 任务描述（部分匹配）
-
-        Returns:
-            是否成功
-        """
-        if not self.project_state:
-            return False
-
-        current = self.project_state.get_document(
-            DocumentType.PROGRESS, "project_manager", full=True
-        ) or ""
-
-        # 简单替换 [ ] 为 [x]
-        if f"- [ ] {task}" in current:
-            updated = current.replace(f"- [ ] {task}", f"- [x] {task}")
-            return self.project_state.update_document(
-                DocumentType.PROGRESS,
-                updated,
-                "project_manager",
-                f"完成任务: {task[:50]}..."
-            )
-        return False
-
     def get_requirements(self) -> str:
         """获取需求文档"""
         if self.project_state:
@@ -944,10 +1078,10 @@ class Harness:
               → 调用 record() 记录 AI 的响应/分析结果
 
         Examples:
-            # 用户提出需求（自动记录到 requirements.md）
+            # 用户提出需求（项目经理自动接收并分配）
             harness.chat("我需要一个用户登录功能")
 
-            # AI 回复（自动记录到 development.md 或对应文档）
+            # AI 回复（自动记录）
             harness.chat("好的，我来分析一下登录功能的实现方案", role="assistant")
 
             # 禁用自动记录（仅存储到会话历史）
@@ -968,9 +1102,24 @@ class Harness:
         self.memory.store_conversation(message, role=role, importance=50)
 
         # 自动记录到文档（核心功能）
+        task_info = None
         if auto_record and self.project_state:
-            context = "用户" if role == "user" else "AI"
-            self.record(message, context=context)
+            if role == "user":
+                # 用户消息：项目经理接收请求
+                # 判断是否是需求或Bug
+                is_requirement = any(kw in message for kw in ["需要", "要", "添加", "新增", "功能", "需求"])
+                is_bug = any(kw in message.lower() for kw in ["bug", "问题", "错误", "异常", "失败", "修复"])
+
+                if is_bug:
+                    task_info = self.receive_request(message, request_type="bug")
+                elif is_requirement:
+                    task_info = self.receive_request(message, request_type="feature")
+                else:
+                    # 普通讨论，简单记录
+                    self.record(message, context="用户")
+            else:
+                # AI 消息：简单记录
+                self.record(message, context="AI")
 
         # 保存状态
         self._save_state()
@@ -980,6 +1129,7 @@ class Harness:
             "session_id": self.sessions._active_session_id,
             "sent": msg is not None,
             "recorded": auto_record and self.project_state is not None,
+            "task_info": task_info,  # 返回任务信息（如果创建了任务）
         }
 
     def switch_session(self, session_type: str) -> dict[str, Any]:

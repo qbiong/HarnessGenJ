@@ -2,9 +2,24 @@
 
 py_ha 是一个 Harness Engineering 框架，将软件工程团队最佳实践引入 AI Agent 开发。
 
-## AI 对话自动记录（核心功能）
+## 核心工作流：项目经理对接
 
-**AI 只需调用一个方法，自动完成持久化：**
+**默认所有用户请求都由项目经理接收和处理：**
+
+```
+用户 → 项目经理（接收、分配、监督） → 开发者（执行） → 项目经理（确认完成）
+```
+
+### 项目经理职责
+
+1. **接收请求**：所有用户需求/Bug通过项目经理接收
+2. **分配任务**：自动分配优先级和负责人
+3. **更新状态**：更新项目文档和统计数据
+4. **监督完成**：跟踪任务进度并确认完成
+
+## AI 对话核心方法
+
+### receive_request() - 项目经理接收请求
 
 ```python
 from py_ha import Harness
@@ -12,59 +27,81 @@ from py_ha import Harness
 harness = Harness("项目名", persistent=True)
 harness.setup_team()
 
-# AI 对话时自动记录（智能识别内容类型）
-harness.record("用户需要一个登录功能")       # → requirements.md
-harness.record("发现登录页面验证码异常")      # → testing.md
-harness.record("已完成登录模块开发")          # → progress.md
-harness.record("正在实现用户认证逻辑")        # → development.md
+# 项目经理接收需求（自动分配优先级、负责人、任务ID）
+result = harness.receive_request("用户需要一个登录功能")
+# 返回: task_id, priority, assignee, status
 
-# chat() 方法默认自动记录
-harness.chat("我需要添加一个搜索功能")        # 用户消息自动记录
-harness.chat("好的，我来实现搜索模块", role="assistant")  # AI回复自动记录
+# 项目经理接收 Bug 报告
+result = harness.receive_request("登录页面验证码异常", request_type="bug")
 ```
 
-### 自动识别规则
+### chat() - 自动通过项目经理处理
 
-| 关键词 | 记录位置 | 示例 |
-|--------|----------|------|
-| 需求、功能、需要、添加、新增、实现 | requirements.md | "用户需要一个登录功能" |
-| bug、问题、错误、异常、失败、修复 | testing.md | "发现支付接口超时问题" |
-| 完成、已、进度、状态、更新 | progress.md | "已完成登录模块开发" |
-| 其他内容 | development.md | "正在优化数据库查询" |
+```python
+# 用户提出需求 → 项目经理自动接收并分配
+harness.chat("我需要一个搜索功能")
+# 自动创建任务、分配优先级、更新统计
 
-## 快速开始
+# AI 回复
+harness.chat("好的，我来实现搜索模块", role="assistant")
+```
 
-### 开发功能
+### complete_task() - 项目经理确认完成
+
+```python
+# 项目经理标记任务完成
+harness.complete_task("TASK-1234567890", summary="功能开发完成")
+```
+
+## 工作流程示例
 
 ```python
 from py_ha import Harness
 
-harness = Harness("项目名")
+# 1. 初始化项目
+harness = Harness("电商平台", persistent=True)
 harness.setup_team()
-harness.develop("功能描述")  # 一键开发（自动记录）
+
+# 2. 用户提出需求 → 项目经理接收
+result = harness.receive_request("实现用户登录功能")
+print(f"任务已创建: {result['task_id']}")
+print(f"优先级: {result['priority']}")  # P1
+print(f"负责人: {result['assignee']}")  # developer
+
+# 3. 开发功能
+dev_result = harness.develop("实现用户登录功能")
+
+# 4. 项目经理确认完成
+harness.complete_task(result['task_id'], summary="登录功能已完成")
+
+# 5. 查看项目状态
+status = harness.get_status()
+print(f"功能总数: {status['project_stats']['features_total']}")
+print(f"已完成: {status['project_stats']['features_completed']}")
+print(f"进度: {status['project_stats']['progress']}%")
 ```
 
-### 修复 Bug
+## 自动分配规则
 
-```python
-harness.fix_bug("Bug 描述")  # 一键修复（自动记录）
-```
+| 请求类型 | 默认优先级 | 默认负责人 | 记录文档 |
+|----------|------------|------------|----------|
+| feature | P1 | developer | requirements.md |
+| bug | P0 | developer | testing.md |
+| task | P2 | developer | requirements.md |
 
-## 核心功能速查
+## API 速查
 
-| 操作 | 命令 | 自动记录 |
-|------|------|----------|
-| 智能记录 | `harness.record("内容")` | ✓ 智能识别类型 |
-| 用户对话 | `harness.chat("消息")` | ✓ 默认自动记录 |
-| AI回复 | `harness.chat("回复", role="assistant")` | ✓ 默认自动记录 |
-| 开发功能 | `harness.develop("描述")` | ✓ 需求+开发日志 |
-| 修复Bug | `harness.fix_bug("描述")` | ✓ Bug报告+修复日志 |
-| 显式需求 | `harness.record_requirement("内容", "P1")` | ✓ 带优先级 |
-| 显式Bug | `harness.record_bug("描述", "high")` | ✓ 带严重程度 |
-| 显式进度 | `harness.record_progress("状态")` | ✓ 进度更新 |
-| 存储记忆 | `harness.remember("key", "value", important=True)` | ✓ 重要知识 |
-| 回忆信息 | `harness.recall("key")` | - |
-| 项目状态 | `harness.get_status()` | - |
+| 方法 | 说明 | 返回 |
+|------|------|------|
+| `receive_request(请求, 类型)` | 项目经理接收请求 | task_id, priority, assignee |
+| `chat(消息)` | 对话（自动项目经理处理） | task_info（如创建任务） |
+| `assign_task(task_id, 负责人)` | 分配任务 | success |
+| `complete_task(task_id, 摘要)` | 确认完成 | success |
+| `develop(需求)` | 快速开发（项目经理调度） | task_id, status |
+| `fix_bug(描述)` | 快速修复（项目经理调度） | task_id, status |
+| `get_status()` | 获取项目状态 | stats, documents |
+| `get_requirements()` | 获取需求文档 | content |
+| `get_progress()` | 获取进度报告 | content |
 
 ## 角色系统
 

@@ -74,6 +74,59 @@ pip install -e ".[dev]"
 
 ## 快速开始
 
+### 核心工作流
+
+### 项目经理对接用户
+
+**所有用户请求都由项目经理接收和处理：**
+
+```
+用户 → 项目经理（接收、分配、监督） → 开发者（执行） → 项目经理（确认完成）
+```
+
+**项目经理职责**：
+1. 接收用户需求/Bug报告
+2. 自动分配优先级和负责人
+3. 更新项目文档和统计数据
+4. 监督任务进度并确认完成
+
+### receive_request() - 项目经理接收请求
+
+```python
+from py_ha import Harness
+
+harness = Harness("项目名", persistent=True)
+harness.setup_team()
+
+# 项目经理接收需求（自动分配优先级、负责人、任务ID）
+result = harness.receive_request("用户需要一个登录功能")
+print(f"任务ID: {result['task_id']}")      # TASK-xxx
+print(f"优先级: {result['priority']}")     # P1
+print(f"负责人: {result['assignee']}")     # developer
+
+# 项目经理接收 Bug 报告（默认 P0 高优先级）
+result = harness.receive_request("登录页面异常", request_type="bug")
+```
+
+### chat() - 自动项目经理处理
+
+```python
+# 用户提出需求 → 项目经理自动接收并分配
+harness.chat("我需要一个搜索功能")
+# 自动: 创建任务、分配优先级、更新统计
+
+# AI 回复
+harness.chat("好的，我来实现搜索模块", role="assistant")
+```
+
+### 自动分配规则
+
+| 请求类型 | 默认优先级 | 默认负责人 | 记录文档 |
+|----------|------------|------------|----------|
+| feature | P1 | developer | requirements.md |
+| bug | P0 | developer | testing.md |
+| task | P2 | developer | requirements.md |
+
 ### AI 对话自动记录（核心功能）
 
 AI 只需调用一个方法，自动识别内容类型并持久化到对应文档：
@@ -423,7 +476,23 @@ py_ha/
 
 ## 更新日志
 
-### v0.3.1 (当前版本)
+### v0.3.2 (当前版本)
+
+**新增：项目经理工作流**
+
+- `receive_request()`: 项目经理接收用户请求，自动分配优先级和负责人
+- `assign_task()`: 项目经理分配任务
+- `complete_task()`: 项目经理确认任务完成
+- 默认会话改为项目经理，所有用户请求通过项目经理对接
+- 项目统计自动更新：功能总数、已完成、进度百分比
+
+**工作流程优化**：
+- 用户 → 项目经理 → 开发者 → 项目经理确认
+- 需求自动记录到 requirements.md（带任务ID、优先级、负责人）
+- 进度自动记录到 progress.md
+- 统计数据实时更新
+
+### v0.3.1
 
 **新增：AI 对话智能自动记录**
 
