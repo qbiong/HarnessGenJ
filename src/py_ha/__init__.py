@@ -87,6 +87,12 @@ from py_ha.project import (
     ProjectStats,
     DocumentType,
     create_project_state,
+    # JVM风格区域映射
+    MemoryRegion,
+    DOCUMENT_REGION_MAP,
+    REGION_LOAD_STRATEGY,
+    get_document_region,
+    get_region_load_strategy,
 )
 
 __all__ = [
@@ -145,4 +151,10 @@ __all__ = [
     "ProjectStats",
     "DocumentType",
     "create_project_state",
+    # JVM风格区域映射
+    "MemoryRegion",
+    "DOCUMENT_REGION_MAP",
+    "REGION_LOAD_STRATEGY",
+    "get_document_region",
+    "get_region_load_strategy",
 ]

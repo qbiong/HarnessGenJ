@@ -6,15 +6,31 @@ ProjectDocument - 项目文档实体
 
 文档类型:
 - requirements: 需求文档（产品经理维护）
-- design: 设计文档（架构师维护）
+- 设计文档（架构师维护）
 - development: 开发日志（开发者维护）
 - testing: 测试报告（测试人员维护）
 - progress: 进度报告（项目经理维护）
+
+JVM风格区域映射:
+- PERMANENT: 项目核心信息（永不回收）
+- OLD: 设计文档、已完成需求（长期存储）
+- SURVIVOR: 当前需求、开发日志（频繁访问）
+- EDEN: 会话消息、临时状态（频繁变更）
 """
 
 from typing import Any
 from pydantic import BaseModel, Field
+from enum import Enum
 import time
+
+
+class MemoryRegion(Enum):
+    """JVM风格内存区域"""
+
+    PERMANENT = "permanent"  # 永久区 - 项目核心信息
+    OLD = "old"              # 老年代 - 长期稳定文档
+    SURVIVOR = "survivor"    # 存活区 - 活跃文档
+    EDEN = "eden"            # 新生区 - 临时内容
 
 
 class DocumentType:
@@ -55,6 +71,60 @@ DOCUMENT_OWNERSHIP = {
         "read_only_for": ["product_manager", "architect", "developer", "tester"],
     },
 }
+
+# 文档类型到JVM内存区域的映射（用于渐进式披露策略）
+DOCUMENT_REGION_MAP = {
+    # Permanent 区 - 项目核心信息，永不回收
+    "project_info": MemoryRegion.PERMANENT,
+    "team_config": MemoryRegion.PERMANENT,
+
+    # Old 区 - 长期稳定的文档
+    DocumentType.DESIGN: MemoryRegion.OLD,
+    "completed_requirements": MemoryRegion.OLD,
+
+    # Survivor 区 - 频繁访问但较稳定
+    DocumentType.REQUIREMENTS: MemoryRegion.SURVIVOR,
+    DocumentType.PROGRESS: MemoryRegion.SURVIVOR,
+
+    # Eden 区 - 频繁变更的临时内容
+    DocumentType.DEVELOPMENT: MemoryRegion.EDEN,
+    DocumentType.TESTING: MemoryRegion.EDEN,
+    "session_messages": MemoryRegion.EDEN,
+}
+
+# 区域加载策略（渐进式披露）
+REGION_LOAD_STRATEGY = {
+    MemoryRegion.PERMANENT: {
+        "always_load": True,
+        "full_content": True,
+        "description": "项目核心信息，始终加载完整内容",
+    },
+    MemoryRegion.OLD: {
+        "always_load": False,
+        "full_content": False,
+        "description": "长期文档，按需加载摘要",
+    },
+    MemoryRegion.SURVIVOR: {
+        "always_load": True,
+        "full_content": False,
+        "description": "活跃文档，加载摘要",
+    },
+    MemoryRegion.EDEN: {
+        "always_load": False,
+        "full_content": False,
+        "description": "临时内容，按需加载",
+    },
+}
+
+
+def get_document_region(doc_type: str) -> MemoryRegion:
+    """获取文档所属的内存区域"""
+    return DOCUMENT_REGION_MAP.get(doc_type, MemoryRegion.EDEN)
+
+
+def get_region_load_strategy(region: MemoryRegion) -> dict[str, Any]:
+    """获取区域的加载策略"""
+    return REGION_LOAD_STRATEGY.get(region, REGION_LOAD_STRATEGY[MemoryRegion.EDEN])
 
 
 class DocumentVersion(BaseModel):

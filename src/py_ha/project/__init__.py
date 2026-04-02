@@ -5,11 +5,15 @@ Project Module - 项目管理模块
 - ProjectDocument: 文档实体，支持所有权和版本管理
 - ProjectStateManager: 项目状态管理器，提供渐进式信息披露
 - DocumentType: 文档类型常量
+- MemoryRegion: JVM风格内存区域枚举
+- DOCUMENT_REGION_MAP: 文档到内存区域的映射
+- REGION_LOAD_STRATEGY: 区域加载策略
 
 核心概念:
 1. 项目经理维护所有文档，作为中央协调者
 2. 每个角色只能访问自己相关的文档
 3. 采用渐进式披露，减少Token消耗
+4. 文档按JVM风格分代存储：Permanent(永久)、Old(长期)、Survivor(活跃)、Eden(临时)
 
 使用示例:
     from py_ha.project import ProjectStateManager
@@ -31,6 +35,11 @@ from py_ha.project.document import (
     DocumentType,
     DocumentVersion,
     DOCUMENT_OWNERSHIP,
+    MemoryRegion,
+    DOCUMENT_REGION_MAP,
+    REGION_LOAD_STRATEGY,
+    get_document_region,
+    get_region_load_strategy,
 )
 from py_ha.project.state import (
     ProjectStateManager,
@@ -45,6 +54,12 @@ __all__ = [
     "DocumentType",
     "DocumentVersion",
     "DOCUMENT_OWNERSHIP",
+    # JVM风格区域映射
+    "MemoryRegion",
+    "DOCUMENT_REGION_MAP",
+    "REGION_LOAD_STRATEGY",
+    "get_document_region",
+    "get_region_load_strategy",
     # 状态管理
     "ProjectStateManager",
     "ProjectInfo",
