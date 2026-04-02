@@ -35,6 +35,10 @@ from py_ha import (
     MemoryManager,
     # Storage
     create_storage,
+    # Session
+    SessionManager,
+    SessionType,
+    MessageRole,
 )
 
 
@@ -57,6 +61,7 @@ class PyHAMCPServer:
         self.coordinator = WorkflowCoordinator()
         self.memory = MemoryManager()
         self.storage = create_storage()
+        self.sessions = SessionManager()  # 多会话管理
 
         # 注册标准工作流
         self.coordinator.register_workflow("standard", create_standard_pipeline())
@@ -244,6 +249,50 @@ class PyHAMCPServer:
             {
                 "name": "project_summary",
                 "description": "获取项目执行摘要",
+                "inputSchema": {"type": "object", "properties": {}, "required": []},
+            },
+            # ==================== 多会话管理 ====================
+            {
+                "name": "session_switch",
+                "description": "切换对话会话。可切换到: development(主开发), product_manager(产品经理), project_manager(项目经理), architect(架构师), tester(测试)",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "session_type": {"type": "string", "description": "会话类型"},
+                    },
+                    "required": ["session_type"],
+                },
+            },
+            {
+                "name": "session_chat",
+                "description": "在当前会话中发送消息。不同会话的消息历史相互独立。",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "message": {"type": "string", "description": "消息内容"},
+                    },
+                    "required": ["message"],
+                },
+            },
+            {
+                "name": "session_list",
+                "description": "列出所有对话会话",
+                "inputSchema": {"type": "object", "properties": {}, "required": []},
+            },
+            {
+                "name": "session_history",
+                "description": "获取当前会话的对话历史",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "limit": {"type": "integer", "description": "消息数量限制", "default": 20},
+                    },
+                    "required": [],
+                },
+            },
+            {
+                "name": "session_report",
+                "description": "获取所有会话的报告",
                 "inputSchema": {"type": "object", "properties": {}, "required": []},
             },
         ]
@@ -437,6 +486,67 @@ class PyHAMCPServer:
                 "stages_executed": stats.stages_executed,
                 "team_members": len(self.coordinator.list_roles()),
             }
+
+        # ==================== 多会话管理 ====================
+        if name == "session_switch":
+            session_type_str = arguments["session_type"].lower()
+            type_map = {
+                "development": SessionType.DEVELOPMENT,
+                "product_manager": SessionType.PRODUCT_MANAGER,
+                "project_manager": SessionType.PROJECT_MANAGER,
+                "architect": SessionType.ARCHITECT,
+                "tester": SessionType.TESTER,
+                "doc_writer": SessionType.DOC_WRITER,
+                "general": SessionType.GENERAL,
+            }
+            st = type_map.get(session_type_str)
+            if not st:
+                return {"switched": False, "error": f"Unknown session type: {session_type_str}"}
+
+            session = self.sessions.switch_session(st)
+            return {
+                "switched": True,
+                "session": session.get_summary() if session else None,
+            }
+
+        if name == "session_chat":
+            message = arguments["message"]
+            msg = self.sessions.chat(message, MessageRole.USER)
+            return {
+                "message_id": msg.id if msg else None,
+                "session_id": self.sessions._active_session_id,
+                "sent": msg is not None,
+            }
+
+        if name == "session_list":
+            return {"sessions": self.sessions.list_sessions()}
+
+        if name == "session_history":
+            limit = arguments.get("limit", 20)
+            messages = self.sessions.get_conversation_history(limit=limit)
+            return {
+                "messages": [
+                    {
+                        "id": msg.id,
+                        "role": msg.role.value,
+                        "content": msg.content,
+                        "timestamp": msg.timestamp,
+                    }
+                    for msg in messages
+                ],
+                "count": len(messages),
+            }
+
+        if name == "session_report":
+            sessions = self.sessions.list_sessions()
+            report_lines = ["# 会话报告\n", "## 所有会话\n"]
+            for session in sessions:
+                active_mark = " (当前)" if session.get("is_active") else ""
+                report_lines.append(f"### {session['name']}{active_mark}")
+                report_lines.append(f"- 类型: {session['type']}")
+                report_lines.append(f"- 消息数: {session['message_count']}")
+                report_lines.append("")
+            return {"report": "\n".join(report_lines)}
 
         raise ValueError(f"Unknown tool: {name}")
 

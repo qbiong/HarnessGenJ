@@ -7,6 +7,7 @@ Harness - Harness Engineering 主入口
 - Team: 开发团队，包含多个角色
 - Pipeline: 工作流流水线
 - Task: 待执行的任务
+- Session: 多对话会话管理
 
 使用示例:
     from py_ha import Harness
@@ -17,8 +18,12 @@ Harness - Harness Engineering 主入口
     # 快速开发功能
     result = harness.develop("实现用户登录功能")
 
-    # 快速修复 Bug
-    result = harness.fix_bug("登录页面无法提交表单")
+    # 多对话支持
+    harness.switch_session("product_manager")
+    harness.chat("登录功能需要支持哪些方式？")
+
+    harness.switch_session("development")
+    harness.chat("继续开发...")
 """
 
 from typing import Any
@@ -39,6 +44,13 @@ from py_ha.workflow import (
 )
 from py_ha.memory import MemoryManager
 from py_ha.storage import create_storage
+from py_ha.session import (
+    SessionManager,
+    SessionType,
+    Session,
+    MessageRole,
+    Message,
+)
 
 
 class HarnessStats(BaseModel):
@@ -48,6 +60,7 @@ class HarnessStats(BaseModel):
     bugs_fixed: int = Field(default=0, description="修复的Bug数")
     workflows_completed: int = Field(default=0, description="完成的工作流数")
     team_size: int = Field(default=0, description="团队规模")
+    messages_sent: int = Field(default=0, description="发送的消息数")
 
 
 class Harness:
@@ -62,11 +75,20 @@ class Harness:
     - fix_bug(): 快速修复Bug
     - analyze(): 分析需求
     - review(): 代码审查
+    - chat(): 多对话会话管理
+    - switch_session(): 切换对话会话
 
     使用示例:
         harness = Harness()
         harness.setup_team()  # 创建默认团队
         result = harness.develop("用户登录功能")
+
+        # 多对话支持
+        harness.switch_session("product_manager")
+        harness.chat("登录功能需求讨论...")
+
+        harness.switch_session("development")
+        harness.chat("继续开发...")
     """
 
     def __init__(self, project_name: str = "Default Project") -> None:
@@ -74,6 +96,7 @@ class Harness:
         self.coordinator = WorkflowCoordinator()
         self.memory = MemoryManager()
         self.storage = create_storage()
+        self.sessions = SessionManager()  # 多会话管理
         self._stats = HarnessStats()
 
         # 注册标准工作流
@@ -429,7 +452,180 @@ class Harness:
             },
             "stats": self._stats.model_dump(),
             "memory_health": self.memory.get_health_report()["status"],
+            "sessions": self.sessions.get_stats(),
         }
+
+    # ==================== 多会话管理 ====================
+
+    def chat(self, message: str, role: str = "user") -> dict[str, Any]:
+        """
+        在当前会话中发送消息
+
+        可以在不打断主开发流程的情况下与其他角色对话
+
+        Args:
+            message: 消息内容
+            role: 消息角色 (user/assistant/system)
+
+        Returns:
+            消息信息
+
+        Examples:
+            harness.chat("我想讨论一下登录功能的需求")
+            harness.chat("好的，让我来实现这个功能", role="assistant")
+        """
+        role_map = {
+            "user": MessageRole.USER,
+            "assistant": MessageRole.ASSISTANT,
+            "system": MessageRole.SYSTEM,
+        }
+        msg_role = role_map.get(role, MessageRole.USER)
+
+        msg = self.sessions.chat(message, msg_role)
+        self._stats.messages_sent += 1
+
+        # 同时存储到记忆系统
+        self.memory.store_conversation(message, role=role, importance=50)
+
+        return {
+            "message_id": msg.id if msg else None,
+            "session_id": self.sessions._active_session_id,
+            "sent": msg is not None,
+        }
+
+    def switch_session(self, session_type: str) -> dict[str, Any]:
+        """
+        切换到指定类型的会话
+
+        不同类型的会话有独立的对话历史，互不干扰：
+        - development: 主开发对话
+        - product_manager: 产品经理对话
+        - project_manager: 项目经理对话
+        - architect: 架构师对话
+        - tester: 测试人员对话
+        - general: 通用对话
+
+        Args:
+            session_type: 会话类型
+
+        Returns:
+            切换结果
+
+        Examples:
+            # 切换到产品经理对话
+            harness.switch_session("product_manager")
+            harness.chat("登录功能需要支持哪些方式？")
+
+            # 切换回主开发对话
+            harness.switch_session("development")
+            harness.chat("继续实现登录功能...")
+        """
+        type_map = {
+            "development": SessionType.DEVELOPMENT,
+            "product_manager": SessionType.PRODUCT_MANAGER,
+            "project_manager": SessionType.PROJECT_MANAGER,
+            "architect": SessionType.ARCHITECT,
+            "tester": SessionType.TESTER,
+            "doc_writer": SessionType.DOC_WRITER,
+            "general": SessionType.GENERAL,
+        }
+
+        st = type_map.get(session_type.lower())
+        if not st:
+            return {"switched": False, "error": f"Unknown session type: {session_type}"}
+
+        session = self.sessions.switch_session(st)
+        return {
+            "switched": True,
+            "session": session.get_summary() if session else None,
+        }
+
+    def create_session(self, session_type: str, name: str = "") -> dict[str, Any]:
+        """
+        创建新会话
+
+        Args:
+            session_type: 会话类型
+            name: 会话名称
+
+        Returns:
+            创建的会话信息
+        """
+        type_map = {
+            "development": SessionType.DEVELOPMENT,
+            "product_manager": SessionType.PRODUCT_MANAGER,
+            "project_manager": SessionType.PROJECT_MANAGER,
+            "architect": SessionType.ARCHITECT,
+            "tester": SessionType.TESTER,
+            "doc_writer": SessionType.DOC_WRITER,
+            "general": SessionType.GENERAL,
+        }
+
+        st = type_map.get(session_type.lower(), SessionType.GENERAL)
+        session = self.sessions.create_session(st, name)
+
+        return {"created": True, "session": session.get_summary()}
+
+    def get_current_session(self) -> dict[str, Any] | None:
+        """
+        获取当前活动会话
+
+        Returns:
+            当前会话信息
+        """
+        session = self.sessions.get_active_session()
+        return session.get_summary() if session else None
+
+    def get_session_history(self, limit: int = 20) -> list[dict[str, Any]]:
+        """
+        获取当前会话的对话历史
+
+        Args:
+            limit: 限制消息数量
+
+        Returns:
+            消息列表
+        """
+        messages = self.sessions.get_conversation_history(limit=limit)
+        return [
+            {
+                "id": msg.id,
+                "role": msg.role.value,
+                "content": msg.content,
+                "timestamp": msg.timestamp,
+            }
+            for msg in messages
+        ]
+
+    def list_sessions(self) -> list[dict[str, Any]]:
+        """
+        列出所有会话
+
+        Returns:
+            会话列表
+        """
+        return self.sessions.list_sessions()
+
+    def get_session_report(self) -> str:
+        """
+        获取会话报告
+
+        Returns:
+            格式化的会话报告
+        """
+        sessions = self.list_sessions()
+
+        report_lines = [f"# {self.project_name} 会话报告\n"]
+        report_lines.append("## 所有会话\n")
+
+        for session in sessions:
+            active_mark = " (当前)" if session.get("is_active") else ""
+            report_lines.append(f"### {session['name']}{active_mark}")
+            report_lines.append(f"- 类型: {session['type']}")
+            report_lines.append(f"- 消息数: {session['message_count']}")
+            report_lines.append("")
+
+        return "\n".join(report_lines)
 
     def get_report(self) -> str:
         """

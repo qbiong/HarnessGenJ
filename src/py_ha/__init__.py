@@ -16,6 +16,15 @@ __version__ = "0.2.0"
 # 主入口
 from py_ha.engine import Harness, create_harness
 
+# 会话管理
+from py_ha.session import (
+    SessionManager,
+    Session,
+    SessionType,
+    Message,
+    MessageRole,
+)
+
 # Roles - 角色系统
 from py_ha.roles import (
     AgentRole,
@@ -66,6 +75,12 @@ __all__ = [
     # 主入口
     "Harness",
     "create_harness",
+    # 会话管理
+    "SessionManager",
+    "Session",
+    "SessionType",
+    "Message",
+    "MessageRole",
     # Roles
     "AgentRole",
     "RoleType",
