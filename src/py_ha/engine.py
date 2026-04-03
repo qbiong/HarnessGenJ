@@ -703,10 +703,12 @@ class Harness:
         else:
             self.project_state.stats.features_total += 1
 
-        self.project_state.project_info.updated_at = time.time()
+        # 4. 设置为当前任务（其他窗口可检测）
+        self.project_state.set_current_task(task_id, request)
+
         self.project_state._save()
 
-        # 4. 保存 Harness 状态
+        # 5. 保存 Harness 状态
         self._save_state()
 
         return {
@@ -826,6 +828,10 @@ class Harness:
                 self.project_state.stats.features_completed /
                 max(self.project_state.stats.features_total, 1) * 100
             )
+
+            # 清除当前任务
+            self.project_state.clear_current_task()
+
             self.project_state._save()
             self._save_state()
 
@@ -1015,6 +1021,41 @@ class Harness:
             return self.project_state.get_project_info()
         return {"name": self.project_name}
 
+    def get_current_task(self) -> dict[str, Any]:
+        """
+        获取当前执行的任务（不同窗口可检测）
+
+        Returns:
+            当前任务信息，包含 task_id, task_desc, status
+        """
+        if self.project_state:
+            return self.project_state.get_current_task()
+        return {"task_id": "", "task_desc": "", "status": ""}
+
+    def has_active_task(self) -> bool:
+        """检查是否有正在执行的任务"""
+        if self.project_state:
+            return self.project_state.has_active_task()
+        return False
+
+    def reload(self) -> bool:
+        """
+        重新加载项目状态（从文件系统）
+
+        用于多窗口场景，确保获取最新数据
+
+        Returns:
+            是否成功加载
+        """
+        if self.project_state:
+            success = self.project_state.reload()
+            if success:
+                # 同时恢复项目名称
+                self.project_name = self.project_state.project_info.name
+                self._load_state()
+            return success
+        return False
+
     # ==================== 状态报告 ====================
 
     def get_status(self) -> dict[str, Any]:
@@ -1043,6 +1084,8 @@ class Harness:
         if self.project_state:
             status["project_stats"] = self.project_state.get_stats()
             status["documents"] = self.project_state.list_documents()
+            status["current_task"] = self.project_state.get_current_task()
+            status["has_active_task"] = self.project_state.has_active_task()
 
         return status
 

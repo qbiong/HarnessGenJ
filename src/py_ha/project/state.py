@@ -36,6 +36,8 @@ class ProjectInfo(BaseModel):
     tech_stack: str = Field(default="", description="技术栈")
     status: str = Field(default="init", description="项目状态: init/in_progress/completed")
     current_phase: str = Field(default="", description="当前阶段")
+    current_task_id: str = Field(default="", description="当前执行的任务ID")
+    current_task_desc: str = Field(default="", description="当前任务描述")
     created_at: float = Field(default_factory=time.time, description="创建时间")
     updated_at: float = Field(default_factory=time.time, description="更新时间")
 
@@ -88,6 +90,17 @@ class ProjectStateManager:
 
         # 尝试加载已有数据
         self._load()
+
+    def reload(self) -> bool:
+        """
+        重新加载项目状态（从文件系统）
+
+        用于多窗口场景，确保获取最新数据
+
+        Returns:
+            是否成功加载
+        """
+        return self._load()
 
     def _ensure_directories(self) -> None:
         """确保所有必要目录存在"""
@@ -165,6 +178,57 @@ class ProjectStateManager:
     def get_stats(self) -> dict[str, Any]:
         """获取项目统计"""
         return self.stats.model_dump()
+
+    # ==================== 当前任务管理 ====================
+
+    def set_current_task(self, task_id: str, task_desc: str) -> bool:
+        """
+        设置当前执行的任务
+
+        Args:
+            task_id: 任务ID
+            task_desc: 任务描述
+
+        Returns:
+            是否成功
+        """
+        self.project_info.current_task_id = task_id
+        self.project_info.current_task_desc = task_desc
+        self.project_info.status = "in_progress"
+        self.project_info.updated_at = time.time()
+        self._save()
+        return True
+
+    def get_current_task(self) -> dict[str, Any]:
+        """
+        获取当前执行的任务
+
+        Returns:
+            当前任务信息
+        """
+        return {
+            "task_id": self.project_info.current_task_id,
+            "task_desc": self.project_info.current_task_desc,
+            "status": self.project_info.status,
+        }
+
+    def clear_current_task(self) -> bool:
+        """
+        清除当前任务（任务完成或取消时调用）
+
+        Returns:
+            是否成功
+        """
+        self.project_info.current_task_id = ""
+        self.project_info.current_task_desc = ""
+        self.project_info.status = "completed"
+        self.project_info.updated_at = time.time()
+        self._save()
+        return True
+
+    def has_active_task(self) -> bool:
+        """检查是否有正在执行的任务"""
+        return bool(self.project_info.current_task_id)
 
     # ==================== 文档管理 ====================
 

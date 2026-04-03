@@ -22,6 +22,33 @@ py_ha 是一个 Harness Engineering 框架，用于 AI Agent 协作开发。
 **技术栈**: 待配置
 **当前阶段**: 初始化
 
+## 多窗口任务检测
+
+**不同窗口可以检测正在执行的任务：**
+
+```python
+# 窗口1: 接收需求
+harness1 = Harness("项目名", workspace=".py_ha")
+result = harness1.receive_request("用户需要一个登录功能")
+
+# 窗口2: 检测当前任务
+harness2 = Harness("新窗口", workspace=".py_ha")
+harness2.reload()  # 从文件系统重新加载最新状态
+
+current = harness2.get_current_task()
+# 返回: {"task_id": "TASK-xxx", "task_desc": "用户需要一个登录功能", "status": "in_progress"}
+
+has_task = harness2.has_active_task()  # True
+```
+
+### API
+
+| 方法 | 说明 |
+|------|------|
+| `get_current_task()` | 获取当前执行的任务 |
+| `has_active_task()` | 检查是否有活动任务 |
+| `reload()` | 从文件系统重新加载状态 |
+
 ## AI 对话核心方法
 
 ### receive_request() - 项目经理接收请求
