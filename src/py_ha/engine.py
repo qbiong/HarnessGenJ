@@ -1146,19 +1146,43 @@ class Harness:
 
         # 自动记录到文档（核心功能）
         task_info = None
+        action_result = None
         if auto_record and self.project_state:
             if role == "user":
-                # 用户消息：项目经理接收请求
-                # 判断是否是需求或Bug
-                is_requirement = any(kw in message for kw in ["需要", "要", "添加", "新增", "功能", "需求"])
-                is_bug = any(kw in message.lower() for kw in ["bug", "问题", "错误", "异常", "失败", "修复"])
+                # 用户消息：智能识别意图并处理
+                message_lower = message.lower()
 
-                if is_bug:
+                # 1. 开发请求：帮我开发/实现...
+                is_develop = any(kw in message for kw in ["帮我开发", "帮我实现", "开发一下", "实现一下", "开始开发", "开始实现"])
+                if is_develop:
+                    action_result = self.develop(message.replace("帮我开发", "").replace("帮我实现", "").replace("开发一下", "").replace("实现一下", "").strip())
+                    task_info = {"task_id": action_result.get("task_id"), "action": "develop"}
+
+                # 2. 修复请求：帮我修复...
+                elif any(kw in message for kw in ["帮我修复", "修复一下", "帮我改"]):
+                    action_result = self.fix_bug(message.replace("帮我修复", "").replace("修复一下", "").replace("帮我改", "").strip())
+                    task_info = {"task_id": action_result.get("task_id"), "action": "fix_bug"}
+
+                # 3. 状态查询：项目进展/当前状态
+                elif any(kw in message for kw in ["进展", "状态", "项目情况", "项目报告"]):
+                    action_result = self.get_status()
+                    task_info = {"action": "get_status"}
+
+                # 4. 当前任务查询
+                elif any(kw in message for kw in ["当前任务", "正在做", "在做什么"]):
+                    action_result = self.get_current_task()
+                    task_info = {"action": "get_current_task"}
+
+                # 5. Bug报告
+                elif any(kw in message_lower for kw in ["bug", "问题", "错误", "异常", "失败", "修复"]):
                     task_info = self.receive_request(message, request_type="bug")
-                elif is_requirement:
+
+                # 6. 新需求
+                elif any(kw in message for kw in ["需要", "要", "添加", "新增", "功能", "需求"]):
                     task_info = self.receive_request(message, request_type="feature")
+
+                # 7. 普通讨论
                 else:
-                    # 普通讨论，简单记录
                     self.record(message, context="用户")
             else:
                 # AI 消息：简单记录
@@ -1172,7 +1196,8 @@ class Harness:
             "session_id": self.sessions._active_session_id,
             "sent": msg is not None,
             "recorded": auto_record and self.project_state is not None,
-            "task_info": task_info,  # 返回任务信息（如果创建了任务）
+            "task_info": task_info,
+            "action_result": action_result,  # 返回执行结果（如开发结果、状态等）
         }
 
     def switch_session(self, session_type: str) -> dict[str, Any]:

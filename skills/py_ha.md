@@ -2,52 +2,105 @@
 
 py_ha 是一个 Harness Engineering 框架，将软件工程团队最佳实践引入 AI Agent 开发。
 
+## 用户对话指南（AI 助手必读）
+
+**用户只需自然对话，AI 助手自动调用相应方法：**
+
+### 用户说："我需要/想要/添加一个功能"
+
+→ AI 调用 `harness.receive_request("用户描述", request_type="feature")`
+
+```python
+# 用户: "我需要一个用户登录功能"
+result = harness.receive_request("用户需要一个用户登录功能", request_type="feature")
+# 自动分配: task_id, priority=P1, assignee=developer
+```
+
+### 用户说："有个 Bug/问题/错误"
+
+→ AI 调用 `harness.receive_request("问题描述", request_type="bug")`
+
+```python
+# 用户: "登录页面验证码显示异常"
+result = harness.receive_request("登录页面验证码显示异常", request_type="bug")
+# 自动分配: task_id, priority=P0, assignee=developer
+```
+
+### 用户说："开发/实现这个功能"
+
+→ AI 调用 `harness.develop("功能描述")`
+
+```python
+# 用户: "帮我开发用户登录功能"
+result = harness.develop("实现用户登录功能")
+```
+
+### 用户说："修复这个 Bug"
+
+→ AI 调用 `harness.fix_bug("Bug描述")`
+
+```python
+# 用户: "帮我修复验证码问题"
+result = harness.fix_bug("登录页面验证码显示异常")
+```
+
+### 用户说："项目进展如何/当前状态"
+
+→ AI 调用 `harness.get_status()` 或 `harness.get_report()`
+
+```python
+status = harness.get_status()
+print(f"功能总数: {status['project_stats']['features_total']}")
+print(f"当前任务: {status['current_task']}")
+```
+
+### 用户说："当前在做什么"
+
+→ AI 调用 `harness.get_current_task()`
+
+```python
+current = harness.get_current_task()
+print(f"当前任务: {current['task_desc']}")
+```
+
 ## 核心工作流：项目经理对接
 
-**默认所有用户请求都由项目经理接收和处理：**
+**所有用户请求都由项目经理接收和处理：**
 
 ```
-用户 → 项目经理（接收、分配、监督） → 开发者（执行） → 项目经理（确认完成）
+用户对话 → AI识别意图 → 项目经理接收 → 自动分配 → 开发者执行 → 项目经理确认
 ```
 
-## 多窗口任务检测
+**项目经理自动完成**：
+1. 接收用户请求
+2. 分配优先级（P0/P1/P2）
+3. 分配负责人（developer）
+4. 创建任务ID
+5. 更新项目文档和统计
 
-**不同窗口可以检测正在执行的任务：**
+## 一行代码完成所有工作
 
 ```python
 from py_ha import Harness
 
-# 窗口1: 接收需求
-harness1 = Harness("项目名", workspace=".py_ha")
-result = harness1.receive_request("用户需要一个登录功能")
-print(f"任务ID: {result['task_id']}")
+# 初始化（默认持久化）
+harness = Harness("项目名")
+harness.setup_team()
 
-# 窗口2: 检测当前任务
-harness2 = Harness("新窗口", workspace=".py_ha")
-harness2.reload()  # 从文件系统重新加载最新状态
-current = harness2.get_current_task()
-print(f"当前任务: {current['task_desc']}")  # "用户需要一个登录功能"
-print(f"有活动任务: {harness2.has_active_task()}")  # True
-
-# 窗口1: 完成任务
-harness1.complete_task(result['task_id'], summary="功能已完成")
-
-# 窗口2: 再次检测
-harness2.reload()
-print(f"有活动任务: {harness2.has_active_task()}")  # False
+# 用户对话 → AI 自动处理
+harness.chat("我需要一个登录功能")  # 自动: 创建任务、分配优先级、记录文档
+harness.chat("帮我开发登录功能")    # 自动: 执行开发流程
+harness.chat("项目进展如何")        # 自动: 返回项目状态
 ```
 
-## API 速查
+## 自动分配规则
 
-| 方法 | 说明 | 返回 |
-|------|------|------|
-| `receive_request(请求, 类型)` | 项目经理接收请求 | task_id, priority, assignee |
-| `get_current_task()` | 获取当前执行的任务 | task_id, task_desc, status |
-| `has_active_task()` | 检查是否有活动任务 | bool |
-| `reload()` | 从文件系统重新加载状态 | success |
-| `chat(消息)` | 对话（自动项目经理处理） | task_info |
-| `complete_task(task_id, 摘要)` | 确认完成 | success |
-| `get_status()` | 获取项目状态（含当前任务） | stats, current_task |
+| 用户意图 | 识别关键词 | 自动分配 |
+|----------|-----------|----------|
+| 新需求 | 需要、想要、添加、新增、功能 | P1, developer, requirements.md |
+| Bug报告 | bug、问题、错误、异常、失败 | P0, developer, testing.md |
+| 开发请求 | 开发、实现、帮我做 | 执行 develop() |
+| 状态查询 | 进展、状态、当前 | 返回 get_status() |
 
 ## 角色系统
 
