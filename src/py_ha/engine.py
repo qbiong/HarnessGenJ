@@ -157,6 +157,19 @@ class Harness:
                 # 恢复项目名称
                 self.project_name = self.project_state.project_info.name
 
+        # AGENTS.md 知识管理器（自动初始化）
+        self._agents_knowledge: "AgentsKnowledgeManager | None" = None
+        if persistent:
+            from py_ha.harness import AgentsKnowledgeManager
+            self._agents_knowledge = AgentsKnowledgeManager(workspace)
+            # 如果 AGENTS.md 未初始化，自动创建
+            if not self._agents_knowledge.is_initialized():
+                self._agents_knowledge.initialize(
+                    project_name,
+                    tech_stack="",
+                    status="init"
+                )
+
         # 会话管理（支持持久化）- 默认使用项目经理会话
         session_path = os.path.join(workspace, "sessions.json") if persistent else None
         self.sessions = SessionManager(persist_path=session_path)
@@ -1047,16 +1060,65 @@ class Harness:
         Returns:
             是否成功加载
         """
+        success = False
+
+        # 重新加载项目状态
         if self.project_state:
             success = self.project_state.reload()
             if success:
                 # 同时恢复项目名称
                 self.project_name = self.project_state.project_info.name
                 self._load_state()
-            return success
-        return False
+
+        # 重新加载 AGENTS.md 知识
+        if self._agents_knowledge:
+            self._agents_knowledge.reload()
+
+        return success
 
     # ==================== 状态报告 ====================
+
+    def get_context_prompt(self) -> str:
+        """
+        获取上下文提示（用于多轮对话保持对 py_ha 的使用）
+
+        AI 助手应在每次对话时检查此方法返回的内容，确保正确使用 py_ha。
+
+        Returns:
+            上下文提示字符串
+        """
+        context_parts = []
+
+        # 1. 从 AGENTS.md 获取项目知识
+        if self._agents_knowledge:
+            knowledge = self._agents_knowledge.get_knowledge_summary()
+            context_parts.append(knowledge)
+
+        # 2. 当前任务
+        if self.project_state and self.project_state.has_active_task():
+            task = self.project_state.get_current_task()
+            context_parts.append(f"\n## 当前任务\n- 任务ID: {task['task_id']}\n- 内容: {task['task_desc']}")
+
+        # 3. 项目状态摘要
+        if self.project_state:
+            stats = self.project_state.get_stats()
+            context_parts.append(f"\n## 项目进度\n- 功能: {stats['features_completed']}/{stats['features_total']}\n- 进度: {stats['progress']}%")
+
+        # 4. 核心方法提示
+        context_parts.append("""
+## py_ha 核心方法（AI 必须使用）
+
+| 用户意图 | 调用方法 |
+|----------|----------|
+| 新需求/功能 | `harness.receive_request("描述", request_type="feature")` |
+| Bug报告 | `harness.receive_request("描述", request_type="bug")` |
+| 开发功能 | `harness.develop("功能描述")` |
+| 修复Bug | `harness.fix_bug("Bug描述")` |
+| 查看状态 | `harness.get_status()` |
+| 记录内容 | `harness.record("内容")` |
+""")
+
+        return "\n".join(context_parts)
 
     def get_status(self) -> dict[str, Any]:
         """

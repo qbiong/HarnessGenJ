@@ -2,6 +2,21 @@
 
 py_ha 是一个 Harness Engineering 框架，将软件工程团队最佳实践引入 AI Agent 开发。
 
+## ⚠️ 多轮对话保持（重要）
+
+**AI 助手在每次对话开始时必须调用 `get_context_prompt()` 获取上下文提示！**
+
+```python
+# 每次对话开始时
+context = harness.get_context_prompt()
+# 返回: 项目知识摘要 + 当前任务 + 进度 + 核心方法提示
+```
+
+这确保了：
+1. AI 始终记住要使用 py_ha 的方法
+2. 当前任务状态被正确传递
+3. 项目进度信息保持同步
+
 ## Harness 6 大核心能力
 
 | 能力 | 模块 | 说明 |

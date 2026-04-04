@@ -281,14 +281,14 @@ class SessionManager:
 
     def _create_default_sessions(self) -> None:
         """创建默认会话"""
-        # 主开发会话
-        dev_session = Session(
-            name="主开发对话",
-            session_type=SessionType.DEVELOPMENT,
+        # 默认使用项目经理会话（用户通过项目经理对接）
+        pm_session = Session(
+            name="项目经理对话",
+            session_type=SessionType.PROJECT_MANAGER,
         )
-        self._sessions[dev_session.id] = dev_session
-        self._sessions_by_type[SessionType.DEVELOPMENT].append(dev_session.id)
-        self._active_session_id = dev_session.id
+        self._sessions[pm_session.id] = pm_session
+        self._sessions_by_type[SessionType.PROJECT_MANAGER].append(pm_session.id)
+        self._active_session_id = pm_session.id
 
     def _load_from_disk(self) -> bool:
         """从磁盘加载会话数据"""
