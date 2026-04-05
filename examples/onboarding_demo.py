@@ -183,9 +183,9 @@ def main():
     print("=" * 60)
 
     print("\nCLI 命令:")
-    print("  py-ha init      # 启动引导")
-    print("  py-ha welcome   # 显示欢迎")
-    print("  py-ha --help    # 查看帮助")
+    print("  harnessgenj init      # 启动引导")
+    print("  harnessgenj welcome   # 显示欢迎")
+    print("  harnessgenj --help    # 查看帮助")
     print("=" * 60)
 
 

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
-py_ha 快速启动脚本
+HarnessGenJ 快速启动脚本
 
-直接运行此脚本来初始化项目并开始使用 py_ha 框架。
+直接运行此脚本来初始化项目并开始使用 HarnessGenJ 框架。
 
 用法:
     python start.py                    # 交互式初始化
@@ -22,7 +22,7 @@ from harnessgenj import Harness, ProjectStateManager, MemoryManager
 def interactive_init():
     """交互式初始化"""
     print("=" * 50)
-    print("  py_ha - AI Agent 协作框架")
+    print("  HarnessGenJ - AI Agent 协作框架")
     print("=" * 50)
     print()
 
@@ -38,7 +38,7 @@ def interactive_init():
     harness.setup_team()
 
     # 初始化项目状态
-    state = ProjectStateManager(".py_ha")
+    state = ProjectStateManager(".HarnessGenJ")
     state.initialize(project_name, tech_stack, description)
 
     # 存储重要信息
@@ -67,7 +67,7 @@ def quick_init(project_name: str, tech_stack: str = "Python"):
     harness = Harness(project_name, persistent=True)
     harness.setup_team()
 
-    state = ProjectStateManager(".py_ha")
+    state = ProjectStateManager(".HarnessGenJ")
     state.initialize(project_name, tech_stack)
 
     harness.remember("project_name", project_name, important=True)

@@ -2,16 +2,16 @@
 HarnessGenJ CLI - Command Line Interface
 
 Usage:
-    py-ha --help
-    py-ha version
-    py-ha init                     # 首次使用引导
-    py-ha setup-hooks              # 自动生成 hooks 配置
-    py-ha develop "实现用户登录功能"
-    py-ha fix "登录页面报错"
-    py-ha team
-    py-ha status
-    py-ha interactive
-    py-ha sync                     # 同步知识文件
+    harnessgenj --help
+    harnessgenj version
+    harnessgenj init                     # 首次使用引导
+    harnessgenj setup-hooks              # 自动生成 hooks 配置
+    harnessgenj develop "实现用户登录功能"
+    harnessgenj fix "登录页面报错"
+    harnessgenj team
+    harnessgenj status
+    harnessgenj interactive
+    harnessgenj sync                     # 同步知识文件
 """
 
 import argparse
@@ -54,7 +54,7 @@ pyha_hook.py - Claude Code Hooks 桥梁脚本 (自动生成)
 1. PostToolUse: 自动记录文件操作到开发日志
 2. PreToolUse: 安全检查 (可选)
 
-此文件由 py-ha setup-hooks 命令自动生成
+此文件由 harnessgenj setup-hooks 命令自动生成
 """
 
 import os
@@ -335,8 +335,8 @@ def cmd_interactive(args: Any) -> None:
 def main() -> None:
     """CLI 主入口"""
     parser = argparse.ArgumentParser(
-        prog="py-ha",
-        description="Python Harness for AI Agents - A Harness Engineering Framework",
+        prog="harnessgenj",
+        description="HarnessGenJ (HGJ) - Harness Engineering with JVM-style Generational Memory",
     )
 
     parser.add_argument(

@@ -1,4 +1,4 @@
-# py_ha 架构重构方案
+# HarnessGenJ 架构重构方案
 
 ## 一、问题诊断
 
@@ -92,7 +92,7 @@ project/state.py ←→ engine.py ←→ memory/manager.py
 ### 2.2 文件结构（精简后）
 
 ```
-src/py_ha/
+src/HarnessGenJ/
 ├── __init__.py          # 导出
 ├── engine.py            # Harness 入口 (~400行)
 │
@@ -151,7 +151,7 @@ class MemoryManager:
     - Hotspot: 检测高频访问，优化装配
     """
     
-    def __init__(self, workspace: str = ".py_ha"):
+    def __init__(self, workspace: str = ".HarnessGenJ"):
         self.heap = MemoryHeap()
         self.gc = GarbageCollector()
         self.hotspot = HotspotDetector()
@@ -244,7 +244,7 @@ class MemoryManager:
 
 ```python
 class Harness:
-    def __init__(self, project_name: str, workspace: str = ".py_ha"):
+    def __init__(self, project_name: str, workspace: str = ".HarnessGenJ"):
         # 核心组件：统一记忆管理
         self.memory = MemoryManager(workspace)
         self.memory.store_knowledge("project_name", project_name)
