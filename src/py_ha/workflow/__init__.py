@@ -16,9 +16,11 @@ from py_ha.workflow.pipeline import (
     WorkflowPipeline,
     WorkflowStage,
     StageStatus,
+    AdversarialStageConfig,
     create_standard_pipeline,
     create_feature_pipeline,
     create_bugfix_pipeline,
+    create_adversarial_pipeline,
 )
 from py_ha.workflow.coordinator import WorkflowCoordinator, create_coordinator
 from py_ha.workflow.context import WorkflowContext
@@ -27,10 +29,12 @@ __all__ = [
     "WorkflowPipeline",
     "WorkflowStage",
     "StageStatus",
+    "AdversarialStageConfig",
     "WorkflowCoordinator",
     "WorkflowContext",
     "create_coordinator",
     "create_standard_pipeline",
     "create_feature_pipeline",
     "create_bugfix_pipeline",
+    "create_adversarial_pipeline",
 ]

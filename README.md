@@ -8,7 +8,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-80%20passed-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-96%20passed-green.svg)](tests/)
 
 </div>
 
@@ -17,6 +17,7 @@
 ## 目录
 
 - [核心理念](#核心理念)
+- [核心亮点：GAN对抗机制](#核心亮点gan对抗机制)
 - [安装方式](#安装方式)
 - [首次接入流程](#首次接入流程)
 - [快速开始](#快速开始)
@@ -42,19 +43,106 @@ py_ha 将软件工程团队的最佳实践引入 AI Agent 开发，让 AI 像真
 | 复杂的数据库配置 | 轻量化存储，开箱即用 |
 | Token 消耗过大 | 渐进式披露，按需加载 |
 | 无持久化 | 自动持久化，重启恢复 |
+| 质量无法保证 | GAN 对抗机制确保代码质量 |
 
 ### 角色驱动协作
 
 每个角色有明确的职责和技能集：
 
-| 角色 | 职责 | 核心技能 |
-|------|------|----------|
-| **ProductManager** | 需求管理 | 需求分析、用户故事、验收标准、优先级排序 |
-| **Architect** | 架构设计 | 系统设计、技术选型、架构评审、设计模式 |
-| **Developer** | 功能开发 | 编码实现、Bug修复、代码重构、代码审查 |
-| **Tester** | 质量保证 | 测试编写、测试执行、Bug报告、覆盖率分析 |
-| **DocWriter** | 文档管理 | 技术文档、API文档、用户手册、知识库维护 |
-| **ProjectManager** | 项目协调 | 任务协调、进度追踪、资源分配、风险管理 |
+| 角色 | 职责 | 核心技能 | 类型 |
+|------|------|----------|------|
+| **ProductManager** | 需求管理 | 需求分析、用户故事、验收标准、优先级排序 | 生成器 |
+| **Architect** | 架构设计 | 系统设计、技术选型、架构评审、设计模式 | 生成器 |
+| **Developer** | 功能开发 | 编码实现、Bug修复、代码重构、代码审查 | 生成器 |
+| **Tester** | 质量保证 | 测试编写、测试执行、Bug报告、覆盖率分析 | 生成器 |
+| **DocWriter** | 文档管理 | 技术文档、API文档、用户手册、知识库维护 | 生成器 |
+| **ProjectManager** | 项目协调 | 任务协调、进度追踪、资源分配、风险管理 | 协调者 |
+| **CodeReviewer** | 代码审查 | 代码质量审查、问题检测、规范检查、安全扫描 | 判别器 |
+| **BugHunter** | 漏洞猎手 | 漏洞探测、边界攻击、安全测试、负向测试 | 判别器 |
+
+---
+
+## 核心亮点：GAN对抗机制
+
+### 设计理念
+
+借鉴生成对抗网络（GAN）的思想，py_ha 实现了**生成器-判别器对抗机制**：
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    GAN 对抗审查流程                           │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   ┌──────────┐    产出    ┌──────────┐                      │
+│   │  生成器   │ ─────────→ │  判别器   │                      │
+│   │ (Developer)│           │(Reviewer)│                      │
+│   └──────────┘    问题    └──────────┘                      │
+│        ↑                      │                              │
+│        │       ┌──────────────┘                              │
+│        │       │                                              │
+│        └───────┘  修复 & 再审查                               │
+│                                                             │
+│   多轮对抗直到通过或达到最大轮次                               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 双层对抗架构
+
+**任务级对抗**：单次开发的生成-审查-修复循环
+
+```python
+result = harness.adversarial_develop(
+    feature_request="实现用户认证模块",
+    max_rounds=3,
+    intensity="normal",  # 或 "aggressive" 使用 BugHunter
+)
+# 返回: success, rounds, quality_score, issues_found, issues_fixed
+```
+
+**系统级对抗**：跨任务模式识别与持续改进
+
+```python
+analysis = harness.get_system_analysis()
+# 返回: 
+# - generator_weaknesses: 生成器薄弱点
+# - discriminator_biases: 判别器偏差
+# - system_health_score: 系统健康度
+# - improvement_actions: 改进建议
+```
+
+### 质量数据驱动记忆管理
+
+对抗审查结果直接影响记忆条目的生命周期：
+
+```
+对抗审查完成
+    ↓
+计算质量分数 (0-100)
+    ↓
+更新 MemoryEntry:
+  - quality_score: 质量分数
+  - review_count: 审查次数
+  - generator_id: 生成者ID
+  - discriminator_id: 审查者ID
+    ↓
+质量感知 GC:
+  - 高质量 (≥70): 优先存活
+  - 低质量 (<30): 优先回收
+```
+
+### 双向积分激励
+
+公平的积分机制确保生成器和判别器都能发挥作用：
+
+| 行为 | 生成器积分 | 判别器积分 |
+|------|-----------|-----------|
+| 一轮通过审查 | +10 | - |
+| 二轮通过 | +5 | - |
+| 发现关键问题 | -10 | +10 |
+| 发现中等问题 | -5 | +5 |
+| 误报问题 | +3 | -3 |
+| 漏掉关键问题 | - | -15 |
+| 生产环境 Bug | -20 | - |
 
 ---
 
@@ -167,7 +255,7 @@ from py_ha import Harness
 harness = Harness("我的项目")
 
 # 存储核心知识
-harness.remember("tech_stack", "Python + FastAPI", importance=100)
+harness.remember("tech_stack", "Python + FastAPI", important=True)
 
 # 接收需求
 result = harness.receive_request("实现用户登录功能")
@@ -301,7 +389,7 @@ result = harness.receive_request("登录页面报错", request_type="bug")
 
 ```python
 # 存储核心知识（Permanent 区，永不回收）
-harness.remember("project_goal", "构建电商平台", importance=100)
+harness.remember("project_goal", "构建电商平台", important=True)
 
 # 回忆知识
 goal = harness.recall("project_goal")
@@ -338,6 +426,56 @@ status = harness.get_status()
 report = harness.get_report()
 ```
 
+### 6. 对抗性质量保证（核心特性）
+
+基于 GAN 思想的生成器-判别器对抗机制，**默认启用**：
+
+```python
+# 对抗性开发（多轮审查直到通过）
+result = harness.adversarial_develop(
+    feature_request="实现用户认证模块",
+    max_rounds=3,           # 最大对抗轮次
+    use_hunter=False,       # 是否使用 BugHunter（激进审查）
+)
+# 返回: {"success": True, "rounds": 2, "quality_score": 85.0, ...}
+
+# 快速审查（单轮）
+passed, issues = harness.quick_review(code)
+
+# 使用 BugHunter 进行激进审查
+passed, issues = harness.quick_review(code, use_hunter=True)
+
+# 获取质量报告
+report = harness.get_quality_report()
+# 包含: 成功率、平均轮次、问题分布、失败模式
+
+# 获取积分排行榜
+leaderboard = harness.get_score_leaderboard()
+
+# 系统级分析（跨任务模式识别）
+analysis = harness.get_system_analysis()
+# 包含: generator_weaknesses, discriminator_biases, improvement_actions
+```
+
+### 7. 积分与绩效
+
+双向激励机制确保公平性：
+
+| 行为 | 积分变化 |
+|------|----------|
+| 一轮通过审查 | +10 分 |
+| 多轮后通过 | +5 分（每轮递减） |
+| 发现关键问题 | +10 分 |
+| 漏掉关键问题 | -10 分 |
+| 误报问题 | -5 分 |
+| 生产环境 Bug | -20 分 |
+
+```python
+# 查看角色积分
+score = harness.get_role_score("developer_1")
+# {"score": 85, "grade": "B", "success_rate": 0.85}
+```
+
 ---
 
 ## JVM风格记忆管理
@@ -355,6 +493,7 @@ report = harness.get_report()
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │              Old 区（老年代）                          │   │
 │  │  长期存活记忆、设计文档 - Major GC 清理                 │   │
+│  │  ★ 质量感知：高质量内容优先存活                         │   │
 │  └─────────────────────────────────────────────────────┘   │
 │  ┌───────────────────┐    ┌───────────────────┐           │
 │  │   Survivor 区     │ ←→ │   Survivor 区     │           │
@@ -367,6 +506,14 @@ report = harness.get_report()
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### 质量感知 GC
+
+记忆条目的存活判定考虑质量分数：
+
+- **高质量 (quality_score ≥ 70)**：优先存活
+- **中等质量 (30-70)**：综合判定
+- **低质量 (< 30)**：优先回收（除非高引用或高重要性）
+
 ### 渐进式披露
 
 每个角色只获取最小必要上下文：
@@ -377,6 +524,9 @@ dev_context = harness.memory.get_context_for_role("developer")
 
 # 项目经理上下文：所有文档完整内容
 pm_context = harness.memory.get_context_for_role("project_manager")
+
+# 代码审查者上下文：开发文档完整 + 质量历史
+reviewer_context = harness.memory.get_context_for_role("code_reviewer")
 ```
 
 ---
@@ -391,17 +541,33 @@ py_ha/
 │   ├── guide.py               # 首次使用引导
 │   │
 │   ├── roles/                 # 角色系统
-│   │   ├── developer.py      # 开发者
-│   │   ├── tester.py         # 测试员
-│   │   ├── product_manager.py # 产品经理
-│   │   ├── architect.py      # 架构师
-│   │   └── project_manager.py # 项目经理
+│   │   ├── base.py           # 角色基类 + RoleType 枚举
+│   │   ├── developer.py      # 开发者（生成器）
+│   │   ├── tester.py         # 测试员（生成器）
+│   │   ├── product_manager.py # 产品经理（生成器）
+│   │   ├── architect.py      # 架构师（生成器）
+│   │   ├── doc_writer.py     # 文档编写者（生成器）
+│   │   ├── project_manager.py # 项目经理（协调者）
+│   │   ├── code_reviewer.py  # 代码审查者（判别器）
+│   │   └── bug_hunter.py     # 漏洞猎手（判别器）
 │   │
-│   ├── memory/                # JVM风格记忆管理（统一入口）
-│   │   ├── manager.py        # 记忆管理器 + 文档系统
-│   │   ├── heap.py           # 分代堆内存
-│   │   ├── gc.py             # 垃圾回收
+│   ├── workflow/               # 工作流系统
+│   │   ├── pipeline.py       # 流水线定义 + 对抗流水线
+│   │   ├── coordinator.py    # 角色调度器
+│   │   └── context.py        # 工作流上下文
+│   │
+│   ├── memory/                # JVM风格记忆管理
+│   │   ├── manager.py        # 记忆管理器 + 质量集成
+│   │   ├── heap.py           # 分代堆 + 质量字段
+│   │   ├── gc.py             # 垃圾回收 + 质量感知GC
 │   │   └── hotspot.py        # 热点检测
+│   │
+│   ├── quality/               # 质量保证系统
+│   │   ├── score.py          # 积分管理器
+│   │   ├── record.py         # 问题记录、对抗记录
+│   │   ├── tracker.py        # 质量追踪、失败模式分析
+│   │   ├── task_adversarial.py   # 任务级对抗控制器
+│   │   └── system_adversarial.py # 系统级对抗控制器
 │   │
 │   ├── storage/               # 轻量化存储
 │   │   ├── json_store.py     # JSON存储
@@ -411,75 +577,128 @@ py_ha/
 │       ├── human_loop.py     # 人机交互
 │       ├── agents_knowledge.py # AGENTS.md
 │       ├── hooks.py          # 质量门禁
-│       └── context_assembler.py # 上下文装配
+│       └── adversarial.py    # 对抗性工作流
 │
-└── tests/                     # 测试文件
+└── tests/                     # 测试文件（96个测试用例）
 ```
 
 ---
 
 ## 更新日志
 
-### v0.5.1 (当前版本)
+### v0.6.0 (当前版本)
+
+**GAN 对抗机制深度融合**
+
+将 GAN 思想的对抗机制深度集成到框架核心，实现质量驱动的开发流程。
+
+1. **对抗机制默认启用**
+   - 项目初始化时自动激活对抗系统
+   - 无需显式调用 `enable_adversarial_mode()`
+   - 质量保证成为开发流程的固有部分
+
+2. **双层对抗架构**
+   - **任务级对抗**：`TaskAdversarialController` 管理单次开发的审查-修复循环
+   - **系统级对抗**：`SystemAdversarialController` 跨任务识别模式，驱动持续改进
+   - 新增 `get_system_analysis()` API 获取系统健康度和改进建议
+
+3. **质量数据驱动记忆管理**
+   - `MemoryEntry` 新增质量字段：`quality_score`、`review_count`、`generator_id`、`discriminator_id`
+   - `QualityAwareCollector` 实现质量感知 GC
+   - 高质量内容优先存活，低质量内容优先回收
+   - 对抗审查结果自动更新记忆条目的质量信息
+
+4. **工作流深度集成**
+   - 新增 `create_adversarial_pipeline()` 工厂函数
+   - `AdversarialStageConfig` 配置对抗阶段参数
+   - `StageStatus` 新增 `UNDER_REVIEW`、`REVIEW_FAILED` 状态
+   - 判别器角色 (`CodeReviewer`、`BugHunter`) 可被调度器自动调度
+
+5. **角色类型系统扩展**
+   - `RoleType` 枚举新增判别器角色
+   - `RoleCategory` 区分生成器和判别器
+   - `DOCUMENT_OWNERSHIP` 配置判别器角色的文档访问权限
+
+6. **集成测试完善**
+   - 新增 16 个集成测试用例
+   - 覆盖：完整生命周期、对抗开发、质量数据流、渐进式披露、系统分析、持久化
+   - 总测试数量：96 个
+
+**API 变更**
+
+```python
+# 新增：系统级分析
+analysis = harness.get_system_analysis()
+
+# 新增：健康度趋势
+trend = harness.get_health_trend()
+
+# 新增：使用任务级对抗控制器
+result = harness.run_task_with_adversarial(
+    task={"id": "TASK-001", "description": "..."},
+    max_rounds=3,
+)
+
+# 废弃：对抗模式现在默认启用
+harness.enable_adversarial_mode()  # 弃用，但仍可用
+```
+
+**质量数据流**
+
+```
+对抗审查 → 计算质量分数 → 更新 MemoryEntry
+         ↓
+    GC 存活判定
+         ↓
+    上下文装配（高质量内容优先加载）
+```
+
+### v0.5.2
+
+**对抗性质量保证系统**
+
+基于 GAN 思想的生成器-判别器对抗机制，显著提升单次开发成功率。
+
+1. **新增判别器角色**
+   - **CodeReviewer**：代码审查者，检测逻辑错误、边界条件、异常处理、安全漏洞、性能问题
+   - **BugHunter**：漏洞猎手，采用激进策略（边界攻击、模糊测试、负向测试、安全探测）
+
+2. **对抗工作流**
+   - 多轮对抗：开发 → 审查 → 修复 → 再审查，直到通过或达到最大轮次
+   - `adversarial_develop()` API 一键执行对抗开发
+   - `quick_review()` 快速单轮审查
+
+3. **双向积分系统**
+   - 生成器：一轮通过加分，多轮通过递减加分，失败扣分
+   - 判别器：发现真实问题加分，漏掉问题扣分，误报扣分
+   - 等级评定：A(≥90)、B(70-89)、C(50-69)、D(<50)
+
+4. **质量追踪**
+   - 失败模式分析：自动识别常见失败原因
+   - 质量报告：成功率、平均轮次、问题分布
+   - 积分排行榜：团队绩效可视化
+
+### v0.5.1
 
 **首次接入优化**
 
 1. **首次接入流程** - 新增规范化提示词模板
-   - 启用 py_ha 提示词：引导 AI 完成项目初始化
-   - 激活项目经理提示词：让 AI 进入项目经理角色
-   - 简化版提示词：快速激活
-
 2. **首次接入指南** - 新增 `docs/ONBOARDING_GUIDE.md`
-   - 完整的接入流程说明
-   - 提示词模板详解
-   - 对话示例和最佳实践
-   - 故障排除指南
-
 3. **skills/py_ha.md 增强** - 新增首次接入章节
-   - 集成提示词模板
-   - 快速激活指引
 
 ### v0.5.0
 
 **新功能**
 
 1. **`Harness.from_project()`** - 从现有项目目录初始化
-   - 自动扫描项目文档（README.md、requirements.md 等）
-   - 自动提取项目名称、描述、技术栈
-   - 一行代码完成项目导入
-
 2. **`get_init_prompt()`** - 获取完整的初始化提示
-   - 包含 API 使用指南
-   - 包含项目信息和文档内容
-   - 专为 Claude Code 对话设计
-
 3. **任务持久化** - 新增 `current_task.json`
-   - 当前任务自动保存
-   - 重启后自动恢复
-
 4. **知识持久化** - 新增 `knowledge.json`
-   - Permanent 区知识自动保存
-   - 重启后自动恢复
 
 **架构重构**
 
 - 删除冗余模块：`kernel/`、`mcp/`、`tools/`、`project/`
 - 合并 `project/` 到 `memory/` - `MemoryManager` 成为统一入口
-- 激活 JVM 功能：GC 和 Hotspot 正常工作
-- 代码精简约 3000 行
-
-**API 变更**
-
-```python
-# 旧版本
-from py_ha import ProjectStateManager
-state = ProjectStateManager(".py_ha")
-
-# 新版本（统一入口）
-from py_ha import Harness
-harness = Harness("项目名")
-harness.memory  # MemoryManager 统一管理
-```
 
 ### v0.4.0
 

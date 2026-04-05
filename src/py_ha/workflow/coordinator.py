@@ -185,12 +185,16 @@ class WorkflowCoordinator:
         else:
             # 自动匹配角色
             role_type_map = {
+                # 生成器角色
                 "product_manager": RoleType.PRODUCT_MANAGER,
                 "architect": RoleType.ARCHITECT,
                 "developer": RoleType.DEVELOPER,
                 "tester": RoleType.TESTER,
                 "doc_writer": RoleType.DOC_WRITER,
                 "project_manager": RoleType.PROJECT_MANAGER,
+                # 判别器角色
+                "code_reviewer": RoleType.CODE_REVIEWER,
+                "bug_hunter": RoleType.BUG_HUNTER,
             }
             role_type = role_type_map.get(stage.role)
             if role_type:
@@ -298,6 +302,84 @@ class WorkflowCoordinator:
         if not pipeline:
             return None
         return pipeline.get_status()
+
+    # ==================== 对抗调度 ====================
+
+    def get_discriminator_for_stage(
+        self,
+        stage_name: str,
+        intensity: str = "normal",
+    ) -> AgentRole | None:
+        """
+        根据阶段自动选择判别器
+
+        Args:
+            stage_name: 阶段名称
+            intensity: "normal" -> CodeReviewer, "aggressive" -> BugHunter
+
+        Returns:
+            判别器角色实例
+        """
+        role_type = RoleType.BUG_HUNTER if intensity == "aggressive" else RoleType.CODE_REVIEWER
+        roles = self.get_roles_by_type(role_type)
+        return roles[0] if roles else self.create_role(role_type)
+
+    def schedule_adversarial_review(
+        self,
+        stage_name: str,
+        artifacts: dict[str, Any],
+        max_rounds: int = 3,
+        intensity: str = "normal",
+        generator_id: str | None = None,
+    ) -> dict[str, Any]:
+        """
+        自动调度对抗审查
+
+        Args:
+            stage_name: 阶段名称
+            artifacts: 产出物
+            max_rounds: 最大对抗轮次
+            intensity: 审查强度 ("normal" | "aggressive")
+            generator_id: 生成者角色ID
+
+        Returns:
+            对抗审查结果
+        """
+        from py_ha.harness.adversarial import AdversarialWorkflow
+        from py_ha.quality.score import ScoreManager
+        from py_ha.quality.tracker import QualityTracker
+
+        # 获取判别器
+        discriminator = self.get_discriminator_for_stage(stage_name, intensity)
+        if not discriminator:
+            return {"status": "error", "message": "No discriminator available"}
+
+        # 获取代码产出物
+        code = artifacts.get("code", artifacts.get("implementation", ""))
+
+        # 执行审查
+        if intensity == "aggressive":
+            from py_ha.roles.bug_hunter import BugHunter
+            if isinstance(discriminator, BugHunter):
+                result = discriminator.hunt(code)
+                issues = result.vulnerabilities
+                passed = result.risk_score < 30
+            else:
+                result = discriminator.review(code)
+                issues = result.issues
+                passed = result.passed
+        else:
+            result = discriminator.review(code)
+            issues = result.issues
+            passed = result.passed
+
+        return {
+            "status": "completed",
+            "passed": passed,
+            "issues": [{"description": i.description, "severity": i.severity.value} for i in issues],
+            "reviewer_id": discriminator.role_id,
+            "intensity": intensity,
+        }
 
 
 # ==================== 便捷函数 ====================

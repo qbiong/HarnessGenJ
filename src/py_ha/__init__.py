@@ -4,15 +4,16 @@ py_ha - Python Harness for AI Agents
 A Harness Engineering Framework for AI Agent Collaboration
 
 核心特性:
-- 角色驱动协作: Developer/Tester/PM/Architect/DocWriter/ProjectManager
+- 角色驱动协作: Developer/Tester/PM/Architect/DocWriter/ProjectManager/CodeReviewer/BugHunter
 - 工作流驱动: 需求→设计→开发→测试→文档→发布
 - JVM风格记忆管理: 分代存储、自动GC、热点检测
 - 渐进式披露: 项目经理协调，每个角色只访问相关信息
+- 对抗性质量保证: GAN式开发者-审查者对抗机制
 - 轻量化设计: 无需数据库/Redis配置
 - 一键执行: 快速完成功能开发/Bug修复
 """
 
-__version__ = "0.5.0"
+__version__ = "0.5.2"
 
 # 主入口
 from py_ha.engine import Harness, create_harness
@@ -40,6 +41,8 @@ from py_ha.roles import (
     Architect,
     DocWriter,
     ProjectManager,
+    CodeReviewer,
+    BugHunter,
 )
 
 # Workflow - 工作流系统
@@ -115,6 +118,21 @@ from py_ha.harness import (
     PermanentKnowledge,
     ActiveTaskContext,
     create_context_assembler,
+    # Adversarial
+    AdversarialWorkflow,
+    AdversarialResult,
+    create_adversarial_workflow,
+)
+
+# Quality Module - 质量保证系统
+from py_ha.quality import (
+    ScoreManager,
+    RoleScore,
+    ScoreEvent,
+    AdversarialRecord,
+    IssueRecord,
+    QualityTracker,
+    FailurePattern,
 )
 
 __all__ = [
@@ -140,6 +158,8 @@ __all__ = [
     "Architect",
     "DocWriter",
     "ProjectManager",
+    "CodeReviewer",
+    "BugHunter",
     # Workflow
     "WorkflowPipeline",
     "WorkflowStage",
@@ -200,4 +220,16 @@ __all__ = [
     "PermanentKnowledge",
     "ActiveTaskContext",
     "create_context_assembler",
+    # Harness - Adversarial
+    "AdversarialWorkflow",
+    "AdversarialResult",
+    "create_adversarial_workflow",
+    # Quality
+    "ScoreManager",
+    "RoleScore",
+    "ScoreEvent",
+    "AdversarialRecord",
+    "IssueRecord",
+    "QualityTracker",
+    "FailurePattern",
 ]

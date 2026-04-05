@@ -439,6 +439,130 @@ class G1Collector(BaseCollector):
         return removed
 
 
+class QualityAwareCollector(BaseCollector):
+    """
+    质量感知的垃圾收集器
+
+    在存活判定中考虑质量分数:
+    - 高质量内容优先保留
+    - 低质量内容优先回收
+    - 与对抗审查系统深度集成
+
+    Args:
+        quality_threshold: 质量阈值，低于此值且低引用则回收
+        reference_threshold: 引用计数阈值
+    """
+
+    def __init__(
+        self,
+        quality_threshold: float = 40.0,
+        reference_threshold: int = 0,
+        high_quality_threshold: float = 70.0,
+    ) -> None:
+        self.quality_threshold = quality_threshold
+        self.reference_threshold = reference_threshold
+        self.high_quality_threshold = high_quality_threshold
+
+    def collect(self, heap: MemoryHeap, *regions: Any) -> GCResult:
+        """执行质量感知的标记-清除"""
+        import time
+        start_time = time.time()
+
+        total_removed = 0
+        total_survived = 0
+        quality_stats = {"high_kept": 0, "low_removed": 0}
+
+        for region in regions:
+            entries = region.list_entries()
+            survived, useless = self.mark(entries)
+            removed = self.sweep(useless, region)
+            total_removed += removed
+            total_survived += len(survived)
+
+            # 统计质量相关信息
+            for entry in survived:
+                if entry.quality_score >= self.high_quality_threshold:
+                    quality_stats["high_kept"] += 1
+            for entry in useless:
+                if entry.quality_score < self.quality_threshold:
+                    quality_stats["low_removed"] += 1
+
+        execution_time = time.time() - start_time
+
+        return GCResult(
+            algorithm=GCAlgorithm.MARK_SWEEP,
+            gc_type=self._determine_gc_type(regions),
+            removed_count=total_removed,
+            freed_space=total_removed,
+            execution_time=execution_time,
+            survived_count=total_survived,
+            details={"quality_stats": quality_stats},
+        )
+
+    def mark(self, entries: list[MemoryEntry]) -> tuple[list[MemoryEntry], list[MemoryEntry]]:
+        """
+        质量感知的标记阶段
+
+        存活判定优先级:
+        1. 高质量 (quality_score >= 70) → 必定存活
+        2. 低质量 + 低引用 (quality_score < 30, references < 1) → 必定回收
+        3. 其他情况 → 使用原有判定逻辑
+        """
+        survived = []
+        useless = []
+
+        for entry in entries:
+            if self._should_survive(entry):
+                survived.append(entry)
+            else:
+                useless.append(entry)
+
+        return survived, useless
+
+    def _should_survive(self, entry: MemoryEntry) -> bool:
+        """
+        基于质量分数决定存活
+
+        Args:
+            entry: 记忆条目
+
+        Returns:
+            是否应该存活
+        """
+        # 高质量内容必定存活
+        if entry.quality_score >= self.high_quality_threshold:
+            return True
+
+        # 低质量内容：只有高引用或高重要性才能存活
+        if entry.quality_score < 30:
+            # 低质量但有高引用（>=3）或高重要性（>=80）则保留
+            if entry.references >= 3 or entry.importance >= 80:
+                return True
+            # 否则回收
+            return False
+
+        # 中等质量情况，使用综合判定
+        # 质量 30-70 之间，根据引用、重要性、访问时间综合判断
+        return entry.is_alive(self.reference_threshold)
+
+    def sweep(self, entries: list[MemoryEntry], region: Any) -> int:
+        """清除阶段"""
+        removed = 0
+        for entry in entries:
+            if region.remove(entry.id):
+                removed += 1
+        return removed
+
+    def _determine_gc_type(self, regions: tuple) -> str:
+        """判断GC类型"""
+        region_types = [r.region_type if hasattr(r, "region_type") else None for r in regions]
+        if MemoryRegion.OLD in region_types:
+            return "major"
+        if MemoryRegion.EDEN in region_types:
+            return "minor"
+        return "unknown"
+
+
 class GarbageCollector:
     """
     垃圾收集器 - JVM-style 记忆回收总控制器
@@ -447,6 +571,7 @@ class GarbageCollector:
     - Minor GC: Eden + Survivor (使用Copying算法)
     - Major GC: Old (使用Mark-Compact算法)
     - Full GC: 全部区域 (使用G1或Mark-Sweep)
+    - Quality GC: 质量感知收集 (新增)
     """
 
     def __init__(
@@ -455,12 +580,14 @@ class GarbageCollector:
         reference_threshold: int = 0,
         compact_threshold: float = 0.8,
         target_pause_time: float = 0.5,
+        quality_threshold: float = 40.0,
     ) -> None:
         # 各算法收集器
         self.copying_collector = CopyingCollector(promotion_threshold)
         self.mark_compact_collector = MarkCompactCollector(compact_threshold)
         self.mark_sweep_collector = MarkSweepCollector(reference_threshold)
         self.g1_collector = G1Collector(target_pause_time)
+        self.quality_aware_collector = QualityAwareCollector(quality_threshold, reference_threshold)
 
         # 配置
         self.promotion_threshold = promotion_threshold
@@ -545,22 +672,49 @@ class GarbageCollector:
 
         return result
 
+    def quality_gc(self, heap: MemoryHeap, *regions: Any) -> GCResult:
+        """
+        Quality GC - 质量感知收集
+
+        使用质量分数进行存活判定:
+        1. 高质量内容优先保留
+        2. 低质量内容优先回收
+        3. 与对抗审查系统深度集成
+
+        Args:
+            heap: 记忆堆
+            regions: 要收集的区域（默认为 Eden + Old）
+        """
+        import time
+        start_time = time.time()
+
+        # 默认收集 Eden 和 Old
+        if not regions:
+            regions = (heap.eden, heap.old)
+
+        result = self.quality_aware_collector.collect(heap, *regions)
+
+        # 更新统计
+        heap.update_gc_stats("quality", result.removed_count, 0)
+
+        return result
+
     def auto_gc(self, heap: MemoryHeap) -> GCResult | None:
         """
         自动GC - 根据各区域状态自动触发合适的GC
 
         类似 JVM 的自动GC触发:
         - Eden满 → Minor GC
-        - Old满 → Major GC
+        - Old满 → Major GC (使用质量感知)
         - 整体满 → Full GC
         """
         # 检查Eden
         if heap.eden.is_full():
             return self.minor_gc(heap)
 
-        # 检查Old
+        # 检查Old - 使用质量感知收集
         if heap.old.is_full():
-            return self.major_gc(heap)
+            return self.quality_gc(heap, heap.old)
 
         # 检查整体内存压力
         total_used = heap.eden.size() + heap.old.size()
@@ -578,5 +732,6 @@ class GarbageCollector:
                 "minor": "Copying",
                 "major": "Mark-Compact",
                 "full": "G1 + Mark-Sweep",
+                "quality": "QualityAware",
             },
         }

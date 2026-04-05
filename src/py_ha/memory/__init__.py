@@ -35,6 +35,7 @@ from py_ha.memory.gc import (
     GarbageCollector,
     GCResult,
     GCAlgorithm,
+    QualityAwareCollector,
 )
 from py_ha.memory.hotspot import HotspotDetector, HotspotInfo, CallCounter
 from py_ha.memory.assembler import AutoAssembler, AssemblyTemplate
@@ -63,6 +64,7 @@ __all__ = [
     "GarbageCollector",
     "GCResult",
     "GCAlgorithm",
+    "QualityAwareCollector",
     # Hotspot
     "HotspotDetector",
     "HotspotInfo",

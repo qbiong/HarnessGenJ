@@ -39,6 +39,11 @@ class MemoryEntry(BaseModel):
         created_at: 创建时间
         last_accessed: 最后访问时间
         metadata: 元数据
+        quality_score: 质量分数 (0-100)，来自对抗审查
+        review_count: 审查次数
+        last_review_result: 最后审查结果
+        generator_id: 生成者角色ID
+        discriminator_id: 审查者角色ID
     """
 
     id: str = Field(..., description="唯一标识")
@@ -50,11 +55,44 @@ class MemoryEntry(BaseModel):
     created_at: float = Field(default_factory=time.time, description="创建时间")
     last_accessed: float = Field(default_factory=time.time, description="最后访问时间")
     metadata: dict[str, Any] = Field(default_factory=dict, description="元数据")
+    # 质量相关字段
+    quality_score: float = Field(default=50.0, ge=0, le=100, description="质量分数(来自对抗审查)")
+    review_count: int = Field(default=0, ge=0, description="审查次数")
+    last_review_result: str | None = Field(default=None, description="最后审查结果: passed/failed")
+    generator_id: str | None = Field(default=None, description="生成者角色ID")
+    discriminator_id: str | None = Field(default=None, description="审查者角色ID")
 
     def touch(self) -> None:
         """更新访问时间和引用计数"""
         self.last_accessed = time.time()
         self.references += 1
+
+    def update_quality(
+        self,
+        quality_score: float | None = None,
+        review_result: str | None = None,
+        generator_id: str | None = None,
+        discriminator_id: str | None = None,
+    ) -> None:
+        """
+        更新质量信息
+
+        Args:
+            quality_score: 质量分数 (0-100)
+            review_result: 审查结果 ("passed" | "failed")
+            generator_id: 生成者角色ID
+            discriminator_id: 审查者角色ID
+        """
+        if quality_score is not None:
+            self.quality_score = max(0, min(100, quality_score))
+        if review_result is not None:
+            self.last_review_result = review_result
+            self.review_count += 1
+        if generator_id is not None:
+            self.generator_id = generator_id
+        if discriminator_id is not None:
+            self.discriminator_id = discriminator_id
+        self.last_accessed = time.time()
 
     def is_alive(self, threshold: int = 0) -> bool:
         """
@@ -64,7 +102,16 @@ class MemoryEntry(BaseModel):
         1. 引用计数 > threshold
         2. 重要性评分 > 30
         3. 最近访问时间
+        4. 质量分数 (新增)
         """
+        # 高质量内容优先存活
+        if self.quality_score >= 70:
+            return True
+        # 低质量：只有高引用或高重要性才能存活
+        if self.quality_score < 30:
+            if self.references >= 3 or self.importance >= 80:
+                return True
+            return False
         if self.references > threshold:
             return True
         if self.importance >= 70:
@@ -350,16 +397,33 @@ class MemoryHeap:
     - Permanent: 永久代
     """
 
+    # 项目规模预设配置
+    SCALE_CONFIGS = {
+        "small": {"eden": 500, "survivor": 250, "old": 2000, "permanent": 5000},
+        "medium": {"eden": 1000, "survivor": 500, "old": 5000, "permanent": 10000},
+        "large": {"eden": 5000, "survivor": 2000, "old": 20000, "permanent": 50000},
+    }
+
     def __init__(
         self,
-        eden_size: int = 1000,
-        survivor_size: int = 500,
-        old_size: int = 5000,
-        permanent_size: int = 10000,
+        project_scale: str = "medium",  # "small" | "medium" | "large"
+        eden_size: int | None = None,
+        survivor_size: int | None = None,
+        old_size: int | None = None,
+        permanent_size: int | None = None,
         survivor_ratio: int = 8,  # Eden:Survivor比例
         promotion_threshold: int = 15,  # 晋升阈值 (类似MaxTenuringThreshold)
         large_entry_threshold: int = 500,  # 大条目阈值 (类似PretenureSizeThreshold)
     ) -> None:
+        # 根据项目规模获取默认配置
+        scale_config = self.SCALE_CONFIGS.get(project_scale, self.SCALE_CONFIGS["medium"])
+
+        # 优先使用显式指定的值，否则使用规模配置
+        eden_size = eden_size or scale_config["eden"]
+        survivor_size = survivor_size or scale_config["survivor"]
+        old_size = old_size or scale_config["old"]
+        permanent_size = permanent_size or scale_config["permanent"]
+
         # 分代区域
         self.eden = EdenMemory(max_size=eden_size)
         self.survivor_0 = SurvivorMemory(max_size=survivor_size)
@@ -368,6 +432,7 @@ class MemoryHeap:
         self.permanent = PermanentMemory(max_size=permanent_size)
 
         # 配置参数
+        self.project_scale = project_scale
         self.survivor_ratio = survivor_ratio
         self.promotion_threshold = promotion_threshold
         self.large_entry_threshold = large_entry_threshold

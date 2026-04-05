@@ -31,6 +31,18 @@ class StageStatus(Enum):
     FAILED = "failed"
     SKIPPED = "skipped"
     BLOCKED = "blocked"
+    UNDER_REVIEW = "under_review"    # 正在被审查
+    REVIEW_FAILED = "review_failed"  # 审查发现问题
+
+
+class AdversarialStageConfig(BaseModel):
+    """对抗审查配置"""
+
+    enabled: bool = Field(default=True, description="是否启用对抗审查")
+    intensity: str = Field(default="normal", description="审查强度: normal | aggressive")
+    max_rounds: int = Field(default=3, description="最大对抗轮次")
+    auto_fix: bool = Field(default=True, description="是否自动修复")
+    discriminator_role: str = Field(default="code_reviewer", description="判别器角色")
 
 
 class WorkflowStage(BaseModel):
@@ -52,6 +64,12 @@ class WorkflowStage(BaseModel):
     outputs: list[str] = Field(default_factory=list, description="产出输出")
     quality_gates: list[str] = Field(default_factory=list, description="质量门禁")
     dependencies: list[str] = Field(default_factory=list, description="依赖的前置阶段")
+
+    # 对抗审查配置
+    adversarial_config: AdversarialStageConfig | None = Field(
+        default=None,
+        description="对抗审查配置",
+    )
 
     # 执行状态
     status: StageStatus = Field(default=StageStatus.PENDING, description="状态")
@@ -318,6 +336,97 @@ def create_bugfix_pipeline() -> WorkflowPipeline:
         inputs=["fixed_code", "bug_report"],
         outputs=["verification_result"],
         dependencies=["fix"],
+    ))
+
+    return pipeline
+
+
+def create_adversarial_pipeline(
+    intensity: str = "normal",
+    max_rounds: int = 3,
+) -> WorkflowPipeline:
+    """
+    创建对抗性流水线
+
+    在每个产出阶段后自动添加审查阶段:
+    development -> adversarial_review -> testing
+
+    Args:
+        intensity: 审查强度 ("normal" | "aggressive")
+        max_rounds: 最大对抗轮次
+
+    Returns:
+        配置好对抗审查的流水线
+    """
+    pipeline = WorkflowPipeline("adversarial_pipeline")
+
+    # 对抗配置
+    adversarial_cfg = AdversarialStageConfig(
+        enabled=True,
+        intensity=intensity,
+        max_rounds=max_rounds,
+        auto_fix=True,
+    )
+
+    # 阶段1: 需求分析
+    pipeline.add_stage(WorkflowStage(
+        name="requirements",
+        description="需求分析",
+        role="product_manager",
+        inputs=["user_request"],
+        outputs=["requirements", "acceptance_criteria"],
+        dependencies=[],
+    ))
+
+    # 阶段2: 设计
+    pipeline.add_stage(WorkflowStage(
+        name="design",
+        description="架构设计",
+        role="architect",
+        inputs=["requirements"],
+        outputs=["design_doc", "tech_stack"],
+        dependencies=["requirements"],
+    ))
+
+    # 阶段3: 开发
+    pipeline.add_stage(WorkflowStage(
+        name="development",
+        description="功能开发",
+        role="developer",
+        inputs=["design_doc", "requirements"],
+        outputs=["code", "unit_tests"],
+        dependencies=["design"],
+        adversarial_config=adversarial_cfg,
+    ))
+
+    # 阶段4: 对抗审查（新增）
+    pipeline.add_stage(WorkflowStage(
+        name="adversarial_review",
+        description="对抗性代码审查",
+        role="code_reviewer" if intensity == "normal" else "bug_hunter",
+        inputs=["code"],
+        outputs=["review_result", "issues"],
+        dependencies=["development"],
+    ))
+
+    # 阶段5: 测试
+    pipeline.add_stage(WorkflowStage(
+        name="testing",
+        description="功能测试",
+        role="tester",
+        inputs=["code", "acceptance_criteria", "review_result"],
+        outputs=["test_results"],
+        dependencies=["adversarial_review"],
+    ))
+
+    # 阶段6: 发布
+    pipeline.add_stage(WorkflowStage(
+        name="release",
+        description="发布评审",
+        role="project_manager",
+        inputs=["test_results", "review_result"],
+        outputs=["release_approval"],
+        dependencies=["testing"],
     ))
 
     return pipeline

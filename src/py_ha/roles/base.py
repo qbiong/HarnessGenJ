@@ -20,12 +20,23 @@ import time
 class RoleType(Enum):
     """角色类型"""
 
+    # 生成器角色（产出）
     DEVELOPER = "developer"              # 开发人员
     TESTER = "tester"                    # 测试人员
     PRODUCT_MANAGER = "product_manager"  # 产品经理
     ARCHITECT = "architect"              # 架构师
     DOC_WRITER = "doc_writer"            # 文档管理员
     PROJECT_MANAGER = "project_manager"  # 项目经理
+    # 判别器角色（对抗）
+    CODE_REVIEWER = "code_reviewer"      # 代码审查者
+    BUG_HUNTER = "bug_hunter"            # 漏洞猎手
+
+
+class RoleCategory(Enum):
+    """角色分类"""
+
+    GENERATOR = "generator"        # 生成器：产出代码/文档
+    DISCRIMINATOR = "discriminator"  # 判别器：审查/验证产出
 
 
 class SkillCategory(Enum):
@@ -171,6 +182,16 @@ class AgentRole(ABC):
     def responsibilities(self) -> list[str]:
         """职责范围"""
         pass
+
+    @property
+    def is_discriminator(self) -> bool:
+        """是否为判别器角色"""
+        return self.role_type in (RoleType.CODE_REVIEWER, RoleType.BUG_HUNTER)
+
+    @property
+    def role_category(self) -> RoleCategory:
+        """角色分类"""
+        return RoleCategory.DISCRIMINATOR if self.is_discriminator else RoleCategory.GENERATOR
 
     @abstractmethod
     def _setup_skills(self) -> None:
@@ -358,14 +379,20 @@ def create_role(
     from py_ha.roles.architect import Architect
     from py_ha.roles.doc_writer import DocWriter
     from py_ha.roles.project_manager import ProjectManager
+    from py_ha.roles.code_reviewer import CodeReviewer
+    from py_ha.roles.bug_hunter import BugHunter
 
     role_classes = {
+        # 生成器角色
         RoleType.DEVELOPER: Developer,
         RoleType.TESTER: Tester,
         RoleType.PRODUCT_MANAGER: ProductManager,
         RoleType.ARCHITECT: Architect,
         RoleType.DOC_WRITER: DocWriter,
         RoleType.PROJECT_MANAGER: ProjectManager,
+        # 判别器角色
+        RoleType.CODE_REVIEWER: CodeReviewer,
+        RoleType.BUG_HUNTER: BugHunter,
     }
 
     role_class = role_classes.get(role_type)
