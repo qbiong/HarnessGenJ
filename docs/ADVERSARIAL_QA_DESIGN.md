@@ -10,7 +10,7 @@
 
 ### GAN 概念映射
 
-| GAN 概念 | py_ha 映射 | 说明 |
+| GAN 概念 | HarnessGenJ 映射 | 说明 |
 |----------|------------|------|
 | 生成器 G | Developer, Architect | 产出代码、设计方案 |
 | 判别器 D | CodeReviewer, QA, BugHunter | 审查、测试、找Bug |
@@ -271,7 +271,7 @@ class BugHunter(AgentRole):
 ### 5.2 新增模块
 
 ```
-src/py_ha/
+src/HarnessGenJ/
 ├── adversarial/                # 对抗系统
 │   ├── __init__.py
 │   ├── manager.py              # 对抗管理器
@@ -373,8 +373,8 @@ class AdversarialWorkflow:
 ## 七、使用示例
 
 ```python
-from py_ha import Harness
-from py_ha.adversarial import AdversarialWorkflow
+from harnessgenj import Harness
+from HarnessGenJ.adversarial import AdversarialWorkflow
 
 # 初始化项目
 harness = Harness("我的项目")

@@ -1,8 +1,8 @@
-# py_ha 项目上下文
+# HarnessGenJ 项目上下文
 
 ## 项目概述
 
-py_ha 是一个 Harness Engineering 框架，用于 AI Agent 协作开发。
+HarnessGenJ 是一个 Harness Engineering 框架，用于 AI Agent 协作开发。
 
 **核心公式**: Agent = Model + Harness
 
@@ -39,11 +39,11 @@ py_ha 是一个 Harness Engineering 框架，用于 AI Agent 协作开发。
 
 ```python
 # 窗口1: 接收需求
-harness1 = Harness("项目名", workspace=".py_ha")
+harness1 = Harness("项目名", workspace=".harnessgenj")
 result = harness1.receive_request("用户需要一个登录功能")
 
 # 窗口2: 检测当前任务
-harness2 = Harness("新窗口", workspace=".py_ha")
+harness2 = Harness("新窗口", workspace=".harnessgenj")
 harness2.reload()  # 从文件系统重新加载最新状态
 
 current = harness2.get_current_task()
@@ -65,7 +65,7 @@ has_task = harness2.has_active_task()  # True
 ### receive_request() - 项目经理接收请求
 
 ```python
-from py_ha import Harness
+from harnessgenj import Harness
 
 harness = Harness("项目名称", persistent=True)
 harness.setup_team()
@@ -119,7 +119,7 @@ print(f"进度: {status['project_stats']['progress']}%")
 ### 完整工作流
 
 ```python
-from py_ha import Harness
+from harnessgenj import Harness
 
 # 1. 初始化
 harness = Harness("电商平台")
@@ -187,7 +187,7 @@ result = harness.fix_bug("支付页面超时")
 ## 项目目录
 
 ```
-.py_ha/
+.harnessgenj/
 ├── project.json     # 项目信息
 ├── documents/       # 项目文档
 │   ├── requirements.md   # 需求文档

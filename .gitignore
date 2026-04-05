@@ -74,7 +74,7 @@ Thumbs.db
 ehthumbs.db
 
 # Project specific
-.py_ha_fs/
+.harnessgenj_fs/
 *.log
 .spec-workflow/
 .pytest_cache/

@@ -16,7 +16,7 @@ import os
 # 添加 src 到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from py_ha import Harness, ProjectStateManager, MemoryManager
+from harnessgenj import Harness, ProjectStateManager, MemoryManager
 
 
 def interactive_init():

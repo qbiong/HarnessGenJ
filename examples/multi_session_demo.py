@@ -12,7 +12,7 @@
 与其他角色沟通需求、进度等，然后切换回主开发对话继续工作。
 """
 
-from py_ha import Harness
+from harnessgenj import Harness
 
 
 def demo_multi_session():
@@ -178,7 +178,7 @@ def demo_real_world_workflow():
 
 def main():
     print("=" * 60)
-    print("py_ha 多会话记忆功能演示")
+    print("HarnessGenJ 多会话记忆功能演示")
     print("在不打断主开发流程的情况下与其他角色沟通")
     print("=" * 60)
 

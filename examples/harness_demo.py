@@ -1,5 +1,5 @@
 """
-py_ha 最简使用示例
+HarnessGenJ 最简使用示例
 
 展示 Harness Engineering 框架的核心能力：
 - 一键开发功能
@@ -7,7 +7,7 @@ py_ha 最简使用示例
 - 团队协作
 """
 
-from py_ha import Harness, create_harness
+from harnessgenj import Harness, create_harness
 
 
 def demo_simple():
@@ -143,7 +143,7 @@ def demo_chain():
 
 def main():
     print("=" * 50)
-    print("py_ha 使用示例")
+    print("HarnessGenJ 使用示例")
     print("Harness Engineering Framework")
     print("=" * 50)
 

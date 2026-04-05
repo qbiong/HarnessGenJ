@@ -1,4 +1,4 @@
-# py_ha MCP Server Configuration
+# harnessgenj MCP Server Configuration
 #
 # 将此配置添加到 Claude Code 或其他 MCP 客户端的配置文件中
 #
@@ -9,9 +9,9 @@
 # 配置示例:
 # {
 #   "mcpServers": {
-#     "py_ha": {
+#     "harnessgenj": {
 #       "command": "python",
-#       "args": ["-m", "py_ha.mcp.server"],
+#       "args": ["-m", "harnessgenj.mcp.server"],
 #       "env": {}
 #     }
 #   }
@@ -20,8 +20,8 @@
 # 或者使用安装后的命令:
 # {
 #   "mcpServers": {
-#     "py_ha": {
-#       "command": "py-ha-mcp",
+#     "harnessgenj": {
+#       "command": "harnessgenj-mcp",
 #       "args": [],
 #       "env": {}
 #     }
@@ -30,7 +30,7 @@
 
 $schema: https://github.com/modelcontextprotocol/spec/blob/main/schema/schema.json
 serverInfo:
-  name: py_ha
+  name: harnessgenj
   version: 0.1.0
   description: JVM-style Memory Management & OS-style Task Scheduling for AI Agents
 

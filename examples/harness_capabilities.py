@@ -5,7 +5,7 @@ Example: Using Harness Built-in Capabilities
 """
 
 import asyncio
-from py_ha.harness import (
+from harnessgenj.harness import (
     PlanningTool,
     VirtualFS,
     LocalStorage,
@@ -21,7 +21,7 @@ async def main() -> None:
     """主函数 - Harness内置能力示例"""
 
     print("=" * 50)
-    print("py_ha Harness 内置能力演示")
+    print("HarnessGenJ Harness 内置能力演示")
     print("=" * 50)
 
     # 1. Planning Tool - 任务规划

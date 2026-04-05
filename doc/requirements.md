@@ -1,9 +1,9 @@
-# py_ha 需求文档
+# HarnessGenJ 需求文档
 
 ## 项目定位
 
 ### 名称
-- **py_ha** - Python Harness for AI Agents
+- **HarnessGenJ** - Python Harness for AI Agents
 - 一个参考 JVM 设计理念构建的 AI Agent 执行框架
 
 ### 目标用户

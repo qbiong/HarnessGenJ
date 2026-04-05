@@ -1,7 +1,7 @@
 """
 首次使用引导示例
 
-展示如何使用 py_ha 的引导系统：
+展示如何使用 HarnessGenJ 的引导系统：
 - 检测是否首次使用
 - 启动引导流程
 - 加载项目配置
@@ -12,7 +12,7 @@
 并告诉用户如何通过对话的方式开始使用框架。
 """
 
-from py_ha import Harness
+from harnessgenj import Harness
 
 
 def demo_first_time_check():
@@ -74,7 +74,7 @@ def demo_onboarding_flow():
     print("-" * 40)
 
     # 模拟配置
-    from py_ha import ProjectConfig
+    from harnessgenj import ProjectConfig
 
     config = ProjectConfig(
         project_name="电商平台",
@@ -162,7 +162,7 @@ def demo_after_onboarding():
 def main():
     """主演示函数"""
     print("=" * 60)
-    print("py_ha 首次使用引导系统演示")
+    print("HarnessGenJ 首次使用引导系统演示")
     print("=" * 60)
 
     demo_first_time_check()

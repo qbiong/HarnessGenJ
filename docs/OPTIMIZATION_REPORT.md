@@ -1,4 +1,4 @@
-# py_ha 框架优化分析报告
+# HarnessGenJ 框架优化分析报告
 
 > 生成时间: 2026-04-05
 > 项目: OpenClawAndroid
@@ -18,7 +18,7 @@
 - `PreToolUse` 的 `$TOOL_INPUT_CONTENT` 变量在 Claude Code 中可能不完整（大文件分块写入时不触发完整检查）
 - `SecurityHook` 的敏感信息模式主要针对 Python，不适用于 Java/Kotlin 项目
 
-**代码位置**: `py_ha/src/py_ha/harness/hooks.py`
+**代码位置**: `HarnessGenJ/src/HarnessGenJ/harness/hooks.py`
 
 ```python
 # 当前 SecurityHook 的模式定义
@@ -71,9 +71,9 @@ LANGUAGE_PATTERNS = {
 **现状问题**:
 - `get_context_prompt()` 需要手动调用，AI 容易忘记
 - 没有自动注入机制（框架本身无法控制 Claude Code 的 system prompt）
-- 多轮对话后 AI 可能忘记使用 py_ha 的方法
+- 多轮对话后 AI 可能忘记使用 HarnessGenJ 的方法
 
-**代码位置**: `py_ha/src/py_ha/harness/context_assembler.py`
+**代码位置**: `HarnessGenJ/src/HarnessGenJ/harness/context_assembler.py`
 
 **优化建议**:
 
@@ -89,7 +89,7 @@ LANGUAGE_PATTERNS = {
 def inject_context_reminder():
     """在关键操作前注入上下文提醒"""
     return """
-[py_ha 提醒] 核心方法:
+[HarnessGenJ 提醒] 核心方法:
 - receive_request("需求") - 接收用户请求
 - develop("功能") - 开发功能
 - record("内容") - 记录开发日志
@@ -107,7 +107,7 @@ def inject_context_reminder():
 - 审批功能为空实现，自动批准所有请求
 - 无法真正实现人机交互审批
 
-**代码位置**: `py_ha/src/py_ha/harness/human_loop.py:89`
+**代码位置**: `HarnessGenJ/src/HarnessGenJ/harness/human_loop.py:89`
 
 ```python
 # 当前实现
@@ -133,7 +133,7 @@ async def request_approval(self, action: str, ...) -> ApprovalRequest:
 - 依赖简单关键词匹配（"完成"、"bug"、"需求"）
 - 可能误分类：如 "需求完成测试" 可能被分类到 progress 而非 requirements
 
-**代码位置**: `py_ha/src/py_ha/engine.py:890-913`
+**代码位置**: `HarnessGenJ/src/HarnessGenJ/engine.py:890-913`
 
 ```python
 # 当前分类逻辑
@@ -158,7 +158,7 @@ if any(kw in content_lower for kw in progress_keywords):
 **严重程度**: ⚠️ 中
 
 **现状问题**:
-- 知识分散在 `.py_ha/knowledge/` 多个文件
+- 知识分散在 `.HarnessGenJ/knowledge/` 多个文件
 - `tech_stack.md` 等需要手动更新
 - 项目代码变更后知识不自动同步
 - 多处知识文件内容不一致
@@ -185,7 +185,7 @@ summaries/tech.summary.md        ← 空内容！ (80B)
 - 使用简单的字符计数估算 Token
 - 精度不足，可能影响上下文裁剪决策
 
-**代码位置**: `py_ha/src/py_ha/harness/context_assembler.py:571`
+**代码位置**: `HarnessGenJ/src/HarnessGenJ/harness/context_assembler.py:571`
 
 ```python
 # 当前实现
@@ -250,14 +250,14 @@ def _estimate_tokens(self, content: str) -> int:
 
 **当前文件状态**:
 ```
-.py_ha/history/
+.HarnessGenJ/history/
 ├── progress.v1.md  (1726 bytes) - 状态：部分任务待处理
 ├── progress.v2.md  (1856 bytes) - 状态：同上，多一行记录
 ├── progress.v3.md  (990 bytes)  - 状态：部分完成
 ├── requirements.v1.md (945 bytes)
 └── requirements.v2.md (727 bytes)
 
-.py_ha/documents/
+.HarnessGenJ/documents/
 ├── progress.md     (2002 bytes) - 当前版本
 ├── requirements.md (1112 bytes)
 └── development.md  (360 bytes)
@@ -276,7 +276,7 @@ def _estimate_tokens(self, content: str) -> int:
 
 **知识存储位置分布**:
 ```
-.py_ha/
+.HarnessGenJ/
 ├── AGENTS.md              ← 主知识文件 (1794B)
 ├── knowledge/
 │   ├── index.md           ← 知识索引
@@ -540,8 +540,8 @@ import sys
 import json
 from pathlib import Path
 
-# 添加 py_ha 到路径
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "py_ha" / "src"))
+# 添加 HarnessGenJ 到路径
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "HarnessGenJ" / "src"))
 
 def handle_post_tool_use():
     """处理 PostToolUse 事件"""
@@ -560,9 +560,9 @@ def handle_post_tool_use():
     if not file_path:
         return
 
-    # 调用 py_ha 记录
+    # 调用 HarnessGenJ 记录
     try:
-        from py_ha import Harness
+        from HarnessGenJ import Harness
         project_root = Path(__file__).parent.parent
         harness = Harness(str(project_root), persistent=True)
 
@@ -608,7 +608,7 @@ if __name__ == "__main__":
 
 ### 4.2 实现知识同步
 
-**文件**: `py_ha/src/py_ha/harness/agents_knowledge.py` (新增方法)
+**文件**: `HarnessGenJ/src/HarnessGenJ/harness/agents_knowledge.py` (新增方法)
 
 ```python
 def sync_all_knowledge(self) -> dict[str, Any]:
@@ -653,7 +653,7 @@ def sync_all_knowledge(self) -> dict[str, Any]:
 
 ### 4.3 修复统计一致性
 
-**文件**: `py_ha/src/py_ha/engine.py` (修改 `complete_task` 方法)
+**文件**: `HarnessGenJ/src/HarnessGenJ/engine.py` (修改 `complete_task` 方法)
 
 ```python
 def complete_task(self, task_id: str, summary: str = "") -> bool:

@@ -1,6 +1,6 @@
-# py_ha 首次接入指南
+# HarnessGenJ 首次接入指南
 
-本指南说明如何让 Claude Code 或其他 AI 编译器首次接入 py_ha 框架。
+本指南说明如何让 Claude Code 或其他 AI 编译器首次接入 HarnessGenJ 框架。
 
 ---
 
@@ -8,18 +8,18 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│                      py_ha 首次接入流程                               │
+│                      HarnessGenJ 首次接入流程                               │
 ├─────────────────────────────────────────────────────────────────────┤
 │                                                                     │
-│  步骤 1: 启用 py_ha                                                  │
+│  步骤 1: 启用 HarnessGenJ                                                  │
 │  ├─ 用户发送「启用提示词」                                            │
 │  ├─ AI 读取项目文档，完成初始化                                        │
-│  └─ 生成 `.py_ha/` 工作目录                                           │
+│  └─ 生成 `.harnessgenj/` 工作目录                                           │
 │                                                                     │
 │  步骤 2: 激活项目经理角色                                              │
 │  ├─ 用户发送「角色激活提示词」                                         │
 │  ├─ AI 进入项目经理角色                                               │
-│  └─ 开始按 py_ha 规范推进项目                                         │
+│  └─ 开始按 HarnessGenJ 规范推进项目                                         │
 │                                                                     │
 │  步骤 3: 持续对话推进                                                 │
 │  ├─ 用户直接与项目经理对话                                             │
@@ -33,14 +33,14 @@
 
 ## 二、提示词模板
 
-### 2.1 启用 py_ha（首次接入）
+### 2.1 启用 HarnessGenJ（首次接入）
 
-**适用场景**: 项目首次引入 py_ha 框架
+**适用场景**: 项目首次引入 HarnessGenJ 框架
 
 **提示词模板**:
 
 ```
-请启用 py_ha 框架协助本项目的开发。
+请启用 HarnessGenJ 框架协助本项目的开发。
 
 执行以下初始化步骤：
 
@@ -48,10 +48,10 @@
    - 扫描项目目录下的 README.md、requirements.md、design.md 等文档
    - 提取项目名称、描述、技术栈信息
 
-2. 初始化 py_ha
+2. 初始化 HarnessGenJ
    - 运行 Python 代码：
      ```python
-     from py_ha import Harness
+     from harnessgenj import Harness
      
      # 从当前项目目录初始化
      harness = Harness.from_project(".")
@@ -62,7 +62,7 @@
      ```
    
 3. 查看初始化结果
-   - 确认 `.py_ha/` 目录已创建
+   - 确认 `.harnessgenj/` 目录已创建
    - 确认项目信息已正确导入
 
 完成后，请汇报初始化结果，包括：
@@ -76,12 +76,12 @@
 
 ### 2.2 激活项目经理角色
 
-**适用场景**: py_ha 初始化完成后，让 AI 进入项目经理角色
+**适用场景**: HarnessGenJ 初始化完成后，让 AI 进入项目经理角色
 
 **提示词模板**:
 
 ```
-我现在要求你按照 py_ha 框架规范，进入项目经理角色。
+我现在要求你按照 HarnessGenJ 框架规范，进入项目经理角色。
 
 作为项目经理，你需要：
 
@@ -121,16 +121,16 @@
 
 ### 2.3 简化版提示词（快速激活）
 
-**启用 py_ha（简版）**:
+**启用 HarnessGenJ（简版）**:
 
 ```
-启用 py_ha 框架。执行 Harness.from_project(".") 初始化，汇报项目状态。
+启用 HarnessGenJ 框架。执行 Harness.from_project(".") 初始化，汇报项目状态。
 ```
 
 **激活项目经理（简版）**:
 
 ```
-进入 py_ha 项目经理角色。作为用户对接窗口，接收请求、分配任务、调度角色、追踪进度。确认并汇报当前状态。
+进入 HarnessGenJ 项目经理角色。作为用户对接窗口，接收请求、分配任务、调度角色、追踪进度。确认并汇报当前状态。
 ```
 
 ---
@@ -143,7 +143,7 @@
 用户: [发送启用提示词]
 
 AI: 
-py_ha 初始化完成！
+HarnessGenJ 初始化完成！
 
 【项目信息】
 - 项目名称: 电商平台
@@ -156,7 +156,7 @@ py_ha 初始化完成！
 - design.md → 设计文档（架构设计）
 
 【工作目录】
-.py_ha/ 已创建，包含：
+.harnessgenj/ 已创建，包含：
 - project.json（项目配置）
 - documents/（文档存储）
 - sessions/（会话管理）
@@ -306,9 +306,9 @@ AI 调用: `harness.switch_session("project_manager")`
 
 - [ ] 项目目录存在 README.md 或其他文档
 - [ ] Python 3.11+ 已安装
-- [ ] py_ha 已安装 (`pip install py-ha`)
+- [ ] HarnessGenJ 已安装 (`pip install harnessgenj`)
 - [ ] 发送启用提示词
-- [ ] 确认 `.py_ha/` 目录已创建
+- [ ] 确认 `.harnessgenj/` 目录已创建
 - [ ] 发送激活项目经理提示词
 - [ ] 确认项目经理就绪
 
@@ -337,12 +337,12 @@ AI 调用: `harness.switch_session("project_manager")`
 
 ### 7.1 初始化失败
 
-**症状**: `.py_ha/` 目录未创建
+**症状**: `.harnessgenj/` 目录未创建
 
 **解决方案**:
 ```python
 # 手动初始化
-from py_ha import Harness
+from harnessgenj import Harness
 harness = Harness("项目名")
 harness.setup_team()
 harness.remember("tech_stack", "Python + FastAPI", importance=100)
@@ -382,5 +382,5 @@ if harness.has_active_task():
 ## 八、参考资源
 
 - [README.md](../README.md) - 项目概述
-- [skills/py_ha.md](../skills/py_ha.md) - 技能文件（AI 助手必读）
+- [skills/HarnessGenJ.md](../skills/HarnessGenJ.md) - 技能文件（AI 助手必读）
 - [PROJECT_CONTEXT.md](../PROJECT_CONTEXT.md) - 项目上下文

@@ -1,14 +1,14 @@
 """
 Example: JVM-style Memory Management Demo
 
-演示 py_ha 框架的 JVM 风格记忆管理:
+演示 HarnessGenJ 框架的 JVM 风格记忆管理:
 1. 分代记忆管理 (Eden → Survivor → Old → Permanent)
 2. 自动记忆回收 (Minor GC, Major GC, Full GC)
 3. 热点检测与自动装配 (类似 JIT)
 """
 
 import asyncio
-from py_ha import MemoryManager, MemoryHeap, GarbageCollector, HotspotDetector, AutoAssembler
+from harnessgenj import MemoryManager, MemoryHeap, GarbageCollector, HotspotDetector, AutoAssembler
 
 
 async def demo_generational_memory() -> None:
@@ -290,7 +290,7 @@ async def main() -> None:
     """主函数"""
 
     print("\n" + "=" * 60)
-    print("py_ha - JVM风格记忆管理演示")
+    print("HarnessGenJ - JVM风格记忆管理演示")
     print("=" * 60)
 
     await demo_generational_memory()

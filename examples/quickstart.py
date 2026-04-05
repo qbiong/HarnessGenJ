@@ -1,5 +1,5 @@
 """
-py_ha Quick Start - Harness Engineering Framework
+HarnessGenJ Quick Start - Harness Engineering Framework
 
 展示 Harness Engineering 核心理念:
 - 角色驱动协作: 用真实团队角色替代抽象概念
@@ -7,7 +7,7 @@ py_ha Quick Start - Harness Engineering Framework
 - 一键执行: 快速完成开发任务
 """
 
-from py_ha import (
+from harnessgenj import (
     # 角色系统
     RoleType,
     Developer,
@@ -178,7 +178,7 @@ def demo_full_pipeline():
 
 def main():
     print("=" * 50)
-    print("py_ha - Harness Engineering Framework")
+    print("HarnessGenJ - Harness Engineering Framework")
     print("角色驱动协作 · 工作流驱动开发")
     print("=" * 50)
 

@@ -5,7 +5,7 @@ Tests for Memory Module - JVM-style Memory Management
 import pytest
 import time
 
-from py_ha.memory import (
+from harnessgenj.memory import (
     MemoryManager,
     MemoryHeap,
     EdenMemory,
@@ -16,8 +16,8 @@ from py_ha.memory import (
     HotspotDetector,
     AutoAssembler,
 )
-from py_ha.memory.heap import MemoryEntry, MemoryRegion
-from py_ha.memory.gc import GCAlgorithm, GCResult
+from harnessgenj.memory.heap import MemoryEntry, MemoryRegion
+from harnessgenj.memory.gc import GCAlgorithm, GCResult
 
 
 class TestMemoryHeap:
@@ -269,7 +269,7 @@ class TestAutoAssembler:
 
     def test_create_inline_template(self) -> None:
         """创建内联模板"""
-        from py_ha.memory.hotspot import HotspotInfo, CallCounter
+        from harnessgenj.memory.hotspot import HotspotInfo, CallCounter
 
         assembler = AutoAssembler(max_inline_size=1000)
 
@@ -306,7 +306,7 @@ class TestAutoAssembler:
 
     def test_cache_management(self) -> None:
         """缓存管理"""
-        from py_ha.memory.hotspot import HotspotInfo, CallCounter
+        from harnessgenj.memory.hotspot import HotspotInfo, CallCounter
 
         assembler = AutoAssembler(cache_size=5)
 
@@ -326,7 +326,7 @@ class TestAutoAssembler:
 
     def test_dead_content_elimination(self) -> None:
         """死代码消除"""
-        from py_ha.memory.hotspot import HotspotInfo
+        from harnessgenj.memory.hotspot import HotspotInfo
 
         assembler = AutoAssembler()
 

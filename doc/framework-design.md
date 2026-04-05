@@ -5,7 +5,7 @@
 ## 项目概述
 
 ### 基本信息
-- **项目名称**: py_ha (Python Harness for AI Agents)
+- **项目名称**: HarnessGenJ (Python Harness for AI Agents)
 - **Python版本**: 3.13.12
 - **设计理念**: 参考 JVM 架构，构建分层、可插拔、规范的 AI Agent 执行引擎
 

@@ -12,10 +12,10 @@ import pytest
 import tempfile
 from pathlib import Path
 
-from py_ha.storage.memory import MemoryStorage, MemoryKnowledgeBase
-from py_ha.storage.json_store import JsonStorage, TaskStateStorage, ContextStorage
-from py_ha.storage.markdown import MarkdownStorage, MarkdownKnowledgeBase, KnowledgeEntry
-from py_ha.storage.manager import StorageManager, StorageType, create_storage
+from harnessgenj.storage.memory import MemoryStorage, MemoryKnowledgeBase
+from harnessgenj.storage.json_store import JsonStorage, TaskStateStorage, ContextStorage
+from harnessgenj.storage.markdown import MarkdownStorage, MarkdownKnowledgeBase, KnowledgeEntry
+from harnessgenj.storage.manager import StorageManager, StorageType, create_storage
 
 
 class TestMemoryStorage:

@@ -4,7 +4,7 @@ Tests for Harness Layer
 
 import pytest
 
-from py_ha.harness import (
+from harnessgenj.harness import (
     HumanLoop,
     ApprovalRequest,
     HooksManager,

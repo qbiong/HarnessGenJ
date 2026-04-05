@@ -14,7 +14,7 @@ import pytest
 import tempfile
 import os
 import shutil
-from py_ha import Harness, create_harness, RoleType
+from harnessgenj import Harness, create_harness, RoleType
 
 
 class TestHarnessCreation:
@@ -34,7 +34,7 @@ class TestHarnessCreation:
     def test_create_persistent(self):
         """测试持久化创建"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            workspace = os.path.join(tmpdir, ".py_ha")
+            workspace = os.path.join(tmpdir, ".harnessgenj")
             harness = Harness("持久化项目", persistent=True, workspace=workspace)
 
             assert harness.project_name == "持久化项目"
@@ -66,7 +66,7 @@ class TestRequestHandling:
     def test_complete_task(self):
         """测试完成任务"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            workspace = os.path.join(tmpdir, ".py_ha")
+            workspace = os.path.join(tmpdir, ".harnessgenj")
             harness = Harness(persistent=True, workspace=workspace)
             result = harness.receive_request("测试功能", request_type="feature")
 
@@ -152,7 +152,7 @@ class TestStatusReport:
     def test_get_status(self):
         """测试获取状态"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            workspace = os.path.join(tmpdir, ".py_ha")
+            workspace = os.path.join(tmpdir, ".harnessgenj")
             harness = Harness(persistent=True, workspace=workspace)
             harness.setup_team()
             harness.receive_request("功能1", request_type="feature")
@@ -196,7 +196,7 @@ class TestPersistence:
     def test_save_and_reload(self):
         """测试保存和重新加载"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            workspace = os.path.join(tmpdir, ".py_ha")
+            workspace = os.path.join(tmpdir, ".harnessgenj")
 
             # 创建并保存
             harness = Harness("持久化测试", persistent=True, workspace=workspace)

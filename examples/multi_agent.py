@@ -1,12 +1,12 @@
 """
 Example: Multi-Agent Coordination
 
-演示如何使用 py_ha 框架进行多 Agent 协调
+演示如何使用 HarnessGenJ 框架进行多 Agent 协调
 """
 
 import asyncio
-from py_ha import Harness, AgentSpec, AgentManifest
-from py_ha.harness import SubagentManager, SubagentConfig
+from harnessgenj import Harness, AgentSpec, AgentManifest
+from harnessgenj.harness import SubagentManager, SubagentConfig
 
 
 async def main() -> None:

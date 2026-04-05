@@ -1,7 +1,7 @@
 """
 Example: Operating System Style Task Management Demo
 
-演示 py_ha 框架的操作系统风格任务管理:
+演示 HarnessGenJ 框架的操作系统风格任务管理:
 1. 调度器 (Scheduler) - 任务调度
 2. 生产者 (Producer) - 任务生产
 3. 消费者 (Consumer) - 任务消费
@@ -9,7 +9,7 @@ Example: Operating System Style Task Management Demo
 """
 
 import asyncio
-from py_ha.kernel import (
+from harnessgenj.kernel import (
     Task,
     TaskStatus,
     TaskPriority,
@@ -20,8 +20,8 @@ from py_ha.kernel import (
     Producer,
     ProducerRole,
 )
-from py_ha.kernel.producer import ProducerConfig, TaskFactory
-from py_ha.kernel.consumer import ConsumerPool, WorkerConsumer
+from harnessgenj.kernel.producer import ProducerConfig, TaskFactory
+from harnessgenj.kernel.consumer import ConsumerPool, WorkerConsumer
 
 
 async def demo_task_lifecycle() -> None:
@@ -349,7 +349,7 @@ async def main() -> None:
     """主函数"""
 
     print("\n" + "=" * 60)
-    print("py_ha - 操作系统风格任务管理演示")
+    print("HarnessGenJ - 操作系统风格任务管理演示")
     print("=" * 60)
 
     await demo_task_lifecycle()

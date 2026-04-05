@@ -20,10 +20,10 @@ import os
 import shutil
 import time
 
-from py_ha import Harness, create_harness, RoleType
-from py_ha.memory import MemoryManager, MemoryRegion, QualityAwareCollector
-from py_ha.quality import ScoreManager, QualityTracker, TaskAdversarialController, SystemAdversarialController
-from py_ha.workflow import create_adversarial_pipeline
+from harnessgenj import Harness, create_harness, RoleType
+from harnessgenj.memory import MemoryManager, MemoryRegion, QualityAwareCollector
+from harnessgenj.quality import ScoreManager, QualityTracker, TaskAdversarialController, SystemAdversarialController
+from harnessgenj.workflow import create_adversarial_pipeline
 
 
 class TestFullProjectLifecycle:
@@ -37,7 +37,7 @@ class TestFullProjectLifecycle:
     def temp_workspace(self):
         """创建临时工作空间"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            workspace = os.path.join(tmpdir, ".py_ha_test")
+            workspace = os.path.join(tmpdir, ".harnessgenj_test")
             yield workspace
             if os.path.exists(workspace):
                 shutil.rmtree(workspace)
@@ -92,7 +92,7 @@ class TestAdversarialDevelopment:
     def temp_workspace(self):
         """创建临时工作空间"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            workspace = os.path.join(tmpdir, ".py_ha_adv")
+            workspace = os.path.join(tmpdir, ".harnessgenj_adv")
             yield workspace
             if os.path.exists(workspace):
                 shutil.rmtree(workspace)
@@ -174,7 +174,7 @@ class TestQualityDataFlow:
     @pytest.fixture
     def temp_workspace(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            workspace = os.path.join(tmpdir, ".py_ha_quality")
+            workspace = os.path.join(tmpdir, ".harnessgenj_quality")
             yield workspace
             if os.path.exists(workspace):
                 shutil.rmtree(workspace)
@@ -303,7 +303,7 @@ class TestProgressiveDisclosure:
     @pytest.fixture
     def temp_workspace(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            workspace = os.path.join(tmpdir, ".py_ha_pd")
+            workspace = os.path.join(tmpdir, ".harnessgenj_pd")
             yield workspace
             if os.path.exists(workspace):
                 shutil.rmtree(workspace)
@@ -389,7 +389,7 @@ class TestSystemAnalysis:
     @pytest.fixture
     def temp_workspace(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            workspace = os.path.join(tmpdir, ".py_ha_sa")
+            workspace = os.path.join(tmpdir, ".harnessgenj_sa")
             yield workspace
             if os.path.exists(workspace):
                 shutil.rmtree(workspace)
@@ -452,7 +452,7 @@ class TestScoreIntegration:
     @pytest.fixture
     def temp_workspace(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            workspace = os.path.join(tmpdir, ".py_ha_score")
+            workspace = os.path.join(tmpdir, ".harnessgenj_score")
             yield workspace
             if os.path.exists(workspace):
                 shutil.rmtree(workspace)
@@ -516,7 +516,7 @@ class TestPersistenceIntegration:
     @pytest.fixture
     def temp_workspace(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            workspace = os.path.join(tmpdir, ".py_ha_persist")
+            workspace = os.path.join(tmpdir, ".harnessgenj_persist")
             yield workspace
             if os.path.exists(workspace):
                 shutil.rmtree(workspace)
@@ -572,7 +572,7 @@ class TestWorkflowPipelineIntegration:
     @pytest.fixture
     def temp_workspace(self):
         with tempfile.TemporaryDirectory() as tmpdir:
-            workspace = os.path.join(tmpdir, ".py_ha_wf")
+            workspace = os.path.join(tmpdir, ".harnessgenj_wf")
             yield workspace
             if os.path.exists(workspace):
                 shutil.rmtree(workspace)

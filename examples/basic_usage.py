@@ -1,12 +1,12 @@
 """
 Example: Basic Agent Usage
 
-演示如何使用 py_ha 框架创建和运行一个简单的 Agent
+演示如何使用 HarnessGenJ 框架创建和运行一个简单的 Agent
 """
 
 import asyncio
-from py_ha import Harness, AgentSpec, ToolSpec, CapabilitySpec
-from py_ha.runtime import ExecutionStrategy
+from harnessgenj import Harness, AgentSpec, ToolSpec, CapabilitySpec
+from harnessgenj.runtime import ExecutionStrategy
 
 
 async def main() -> None:
