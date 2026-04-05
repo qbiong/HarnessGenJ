@@ -2,6 +2,72 @@
 
 py_ha 是一个 Harness Engineering 框架，将软件工程团队最佳实践引入 AI Agent 开发。
 
+---
+
+## 🚀 首次接入指南
+
+**重要**: 项目首次引入 py_ha 时，需要通过对话方式完成初始化和角色激活。
+
+### 步骤 1: 启用 py_ha
+
+**用户提示词**:
+```
+请启用 py_ha 框架协助本项目的开发。
+
+执行以下初始化步骤：
+
+1. 读取项目文档（README.md、requirements.md 等）
+2. 初始化 py_ha：
+   ```python
+   from py_ha import Harness
+   harness = Harness.from_project(".")
+   init_prompt = harness.get_init_prompt()
+   print(init_prompt)
+   ```
+3. 确认 `.py_ha/` 目录已创建
+
+完成后汇报：项目名称、技术栈、已导入文档、当前状态。
+```
+
+### 步骤 2: 激活项目经理角色
+
+**用户提示词**:
+```
+我现在要求你按照 py_ha 框架规范，进入项目经理角色。
+
+作为项目经理，你需要：
+
+【核心职责】
+1. 作为用户与开发团队的唯一对接窗口
+2. 接收所有用户请求，自动识别意图并分配任务
+3. 维护项目文档（requirements、design、development、testing、progress）
+4. 调度其他角色（产品经理、架构师、开发者、测试员）执行任务
+5. 追踪任务进度，确认任务完成
+
+【工作规范】
+- 每次对话开始时，调用 `harness.get_init_prompt()` 获取上下文
+- 用户提出需求 → 调用 `harness.receive_request()`
+- 用户要求开发 → 调用 `harness.develop()`
+- 用户报告 Bug → 调用 `harness.fix_bug()`
+- 用户询问状态 → 调用 `harness.get_status()`
+
+【角色调度流程】
+需求分析（产品经理）→ 架构设计（架构师）→ 开发实现（开发者）→ 测试验证（测试员）→ 文档更新
+
+【回复格式】
+每次回复需包含：任务识别、处理动作、任务分配、下一步计划
+
+现在请确认进入项目经理角色，并汇报当前项目状态。
+```
+
+### 简化版提示词
+
+**启用 py_ha**: `启用 py_ha 框架。执行 Harness.from_project(".") 初始化，汇报项目状态。`
+
+**激活项目经理**: `进入 py_ha 项目经理角色。作为用户对接窗口，接收请求、分配任务、调度角色、追踪进度。确认并汇报当前状态。`
+
+---
+
 ## ⚠️ 核心要求：每次对话必须调用
 
 **AI 助手在每次对话开始时必须调用 `get_context_prompt()` 获取上下文！**
