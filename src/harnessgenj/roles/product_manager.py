@@ -17,6 +17,9 @@ Product Manager Role - 产品经理角色（渐进式披露版）
 - 项目基本信息
 - 完整需求文档
 - 进度摘要（了解开发进展）
+
+注意: 需求检测功能已移至 workflow/requirement_stage.py
+       产品经理通过 RequirementDetectionStage 获取需求检测结果
 """
 
 from typing import Any

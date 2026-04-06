@@ -27,6 +27,9 @@ Project Manager Role - 项目经理角色（中央协调者）
 
     # 收集产出
     pm.collect_artifact("developer", {"code": "shopping_cart.py"})
+
+注意: 需求检测功能已移至 workflow/requirement_stage.py
+       项目经理通过 RequirementDetectionStage 获取需求检测结果
 """
 
 from typing import Any
@@ -64,7 +67,7 @@ class ProjectManager(AgentRole):
     核心职责:
     1. 维护项目所有文档
     2. 调度其他角色执行任务
-    3. 理项目状态和进度
+    3. 管理项目状态和进度
     4. 提供渐进式信息披露
 
     Harness角色定义:
