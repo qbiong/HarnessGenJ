@@ -447,15 +447,17 @@ class ProjectManager(AgentRole):
         """进度追踪"""
         if self.state:
             stats = self.state.get_stats()
+            # stats 结构: {"project": ..., "stats": {...}, "memory": ..., "hotspots": ...}
+            project_stats = stats.get("stats", {})
             result = {
                 "status": "completed",
                 "outputs": {
                     "progress_report": {
-                        "total_features": stats["features_total"],
-                        "completed_features": stats["features_completed"],
-                        "total_bugs": stats["bugs_total"],
-                        "fixed_bugs": stats["bugs_fixed"],
-                        "completion_rate": f"{stats['progress']}%",
+                        "total_features": project_stats.get("features_total", 0),
+                        "completed_features": project_stats.get("features_completed", 0),
+                        "total_bugs": project_stats.get("bugs_total", 0),
+                        "fixed_bugs": project_stats.get("bugs_fixed", 0),
+                        "completion_rate": f"{project_stats.get('progress', 0)}%",
                     },
                     "blockers": [],
                     "recommendations": [

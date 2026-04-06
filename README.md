@@ -8,7 +8,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-588%20passed-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-660%20passed-green.svg)](tests/)
 
 </div>
 
@@ -588,7 +588,12 @@ HarnessGenJ/
 │       ├── hooks_integration.py # Hooks 集成层
 │       └── adversarial.py    # 对抗性工作流
 │
-└── tests/                     # 测试文件（588个测试用例）
+└── tests/                     # 测试文件（660个测试用例）
+    ├── roles/                 # 角色单元测试
+    │   ├── test_product_manager.py
+    │   └── test_project_manager.py
+    ├── maintenance/           # 维护模块测试
+    └── workflow/              # 工作流测试
 ```
 
 ---
