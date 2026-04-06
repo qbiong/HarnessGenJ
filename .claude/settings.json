@@ -4,5 +4,42 @@
       "WebFetch(domain:mp.weixin.qq.com)",
       "Bash(python -c ':*)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/harnessgenj_hook.py --security",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/harnessgenj_hook.py --post",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/harnessgenj_hook.py --flush-state"
+          }
+        ]
+      }
+    ]
   }
 }
