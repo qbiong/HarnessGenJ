@@ -14,12 +14,23 @@ Workflow Pipeline - 工作流流水线
 - 处理: 角色执行任务
 - 输出: 当前阶段的交付物
 - 验证: 质量门禁检查
+
+依赖管理:
+- 使用 DependencyGraph 进行循环依赖检测
+- 支持拓扑排序确定执行顺序
+- 提供 Mermaid 可视化
 """
 
 from typing import Any, Callable
 from pydantic import BaseModel, Field
 from enum import Enum
 import time
+
+from harnessgenj.workflow.dependency import (
+    DependencyGraph,
+    TaskNode,
+    TaskStatus as DependencyTaskStatus,
+)
 
 
 class StageStatus(Enum):
@@ -108,6 +119,7 @@ class WorkflowPipeline:
     - 阶段之间通过交付物传递
     - 每个阶段有明确的质量门禁
     - 支持并行和串行执行
+    - 使用 DependencyGraph 进行依赖管理
     """
 
     def __init__(self, name: str = "default_pipeline") -> None:
@@ -116,11 +128,45 @@ class WorkflowPipeline:
         self._stage_order: list[str] = []
         self._artifacts: dict[str, Any] = {}
         self._callbacks: dict[str, list[Callable]] = {}
+        # 集成依赖图管理
+        self._dependency_graph = DependencyGraph()
 
-    def add_stage(self, stage: WorkflowStage) -> None:
-        """添加阶段"""
+    def add_stage(self, stage: WorkflowStage) -> bool:
+        """
+        添加阶段
+
+        Args:
+            stage: 工作流阶段
+
+        Returns:
+            是否添加成功（如果存在循环依赖则返回 False）
+        """
+        # 添加到依赖图（自动检测循环依赖）
+        if not self._dependency_graph.add_task(
+            task_id=stage.name,
+            dependencies=stage.dependencies,
+            name=stage.description,
+            metadata={
+                "role": stage.role,
+                "inputs": stage.inputs,
+                "outputs": stage.outputs,
+                "quality_gates": stage.quality_gates,
+            },
+        ):
+            return False  # 循环依赖
+
         self._stages[stage.name] = stage
         self._stage_order.append(stage.name)
+        return True
+
+    def remove_stage(self, name: str) -> bool:
+        """移除阶段"""
+        if name not in self._stages:
+            return False
+        self._dependency_graph.remove_task(name)
+        del self._stages[name]
+        self._stage_order.remove(name)
+        return True
 
     def get_stage(self, name: str) -> WorkflowStage | None:
         """获取阶段"""
@@ -144,6 +190,26 @@ class WorkflowPipeline:
                 ready.append(stage)
 
         return ready
+
+    def has_circular_dependency(self) -> bool:
+        """检测是否存在循环依赖"""
+        return self._dependency_graph.has_cycle()
+
+    def find_circular_dependency(self) -> list[str] | None:
+        """查找循环依赖路径"""
+        return self._dependency_graph.find_cycle()
+
+    def get_execution_order(self) -> list[str]:
+        """获取拓扑排序后的执行顺序"""
+        return self._dependency_graph.topological_sort()
+
+    def analyze_stage_impact(self, stage_name: str) -> dict[str, Any]:
+        """分析修改阶段的影响范围"""
+        return self._dependency_graph.analyze_impact(stage_name)
+
+    def to_mermaid(self, title: str | None = None) -> str:
+        """生成 Mermaid 可视化图表"""
+        return self._dependency_graph.to_mermaid(title or f"{self.name} Pipeline")
 
     def store_artifact(self, name: str, content: Any) -> None:
         """存储交付物"""
@@ -184,6 +250,11 @@ class WorkflowPipeline:
             stage.completed_at = None
             stage.result = None
         self._artifacts.clear()
+        self._dependency_graph.reset()
+
+    def get_dependency_graph(self) -> DependencyGraph:
+        """获取底层依赖图"""
+        return self._dependency_graph
 
 
 # ==================== 标准工作流 ====================

@@ -155,7 +155,7 @@ class BugHunter(AgentRole):
 
     @property
     def role_type(self) -> RoleType:
-        return RoleType.TESTER
+        return RoleType.BUG_HUNTER
 
     @property
     def responsibilities(self) -> list[str]:

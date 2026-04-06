@@ -1,0 +1,65 @@
+{
+  "scores": {
+    "developer_1": {
+      "role_type": "developer",
+      "role_id": "developer_1",
+      "role_name": "开发者",
+      "score": 100,
+      "total_tasks": 0,
+      "success_tasks": 0,
+      "failed_tasks": 0,
+      "issues_found": 0,
+      "issues_valid": 0,
+      "issues_false_positive": 0,
+      "issues_missed": 0,
+      "created_at": 1775402124.3179982,
+      "updated_at": 1775402124.3179984
+    },
+    "code_reviewer_1": {
+      "role_type": "code_reviewer",
+      "role_id": "code_reviewer_1",
+      "role_name": "代码审查者",
+      "score": 100,
+      "total_tasks": 0,
+      "success_tasks": 0,
+      "failed_tasks": 0,
+      "issues_found": 0,
+      "issues_valid": 0,
+      "issues_false_positive": 0,
+      "issues_missed": 0,
+      "created_at": 1775402124.318307,
+      "updated_at": 1775402124.318307
+    },
+    "bug_hunter_1": {
+      "role_type": "bug_hunter",
+      "role_id": "bug_hunter_1",
+      "role_name": "漏洞猎手",
+      "score": 100,
+      "total_tasks": 0,
+      "success_tasks": 0,
+      "failed_tasks": 0,
+      "issues_found": 0,
+      "issues_valid": 0,
+      "issues_false_positive": 0,
+      "issues_missed": 0,
+      "created_at": 1775402124.31858,
+      "updated_at": 1775402124.31858
+    },
+    "project_manager_1": {
+      "role_type": "project_manager",
+      "role_id": "project_manager_1",
+      "role_name": "项目经理",
+      "score": 100,
+      "total_tasks": 0,
+      "success_tasks": 0,
+      "failed_tasks": 0,
+      "issues_found": 0,
+      "issues_valid": 0,
+      "issues_false_positive": 0,
+      "issues_missed": 0,
+      "created_at": 1775402124.3188207,
+      "updated_at": 1775402124.318821
+    }
+  },
+  "events": []
+}

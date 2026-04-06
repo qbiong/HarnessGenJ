@@ -8,7 +8,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-96%20passed-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-395%20passed-green.svg)](tests/)
 
 </div>
 
@@ -543,9 +543,13 @@ HarnessGenJ/
 │   │   └── bug_hunter.py     # 漏洞猎手（判别器）
 │   │
 │   ├── workflow/               # 工作流系统
-│   │   ├── pipeline.py       # 流水线定义 + 对抗流水线
+│   │   ├── pipeline.py       # 流水线定义 + 对抗流水线 + 依赖图集成
 │   │   ├── coordinator.py    # 角色调度器
-│   │   └── context.py        # 工作流上下文
+│   │   ├── context.py        # 工作流上下文
+│   │   ├── collaboration.py  # 角色协作管理器
+│   │   ├── message_bus.py    # 消息传递总线
+│   │   ├── dependency.py     # 任务依赖图（循环检测、拓扑排序）
+│   │   └── tdd_workflow.py   # TDD 工作流
 │   │
 │   ├── memory/                # JVM风格记忆管理
 │   │   ├── manager.py        # 记忆管理器 + 质量集成
@@ -560,6 +564,13 @@ HarnessGenJ/
 │   │   ├── task_adversarial.py   # 任务级对抗控制器
 │   │   └── system_adversarial.py # 系统级对抗控制器
 │   │
+│   ├── codegen/               # 代码生成辅助
+│   │   ├── templates.py      # 代码模板库
+│   │   └── generator.py      # 代码生成器 + 架构约束
+│   │
+│   ├── sync/                  # 文档同步
+│   │   └── doc_sync.py       # 文档版本同步管理
+│   │
 │   ├── storage/               # 轻量化存储
 │   │   ├── json_store.py     # JSON存储
 │   │   └── markdown.py       # Markdown存储
@@ -568,16 +579,87 @@ HarnessGenJ/
 │       ├── human_loop.py     # 人机交互
 │       ├── agents_knowledge.py # AGENTS.md
 │       ├── hooks.py          # 质量门禁
+│       ├── hooks_integration.py # Hooks 集成层
 │       └── adversarial.py    # 对抗性工作流
 │
-└── tests/                     # 测试文件（96个测试用例）
+└── tests/                     # 测试文件（395个测试用例）
 ```
 
 ---
 
 ## 更新日志
 
-### v0.6.0 (当前版本)
+### v0.7.0 (当前版本)
+
+**框架架构优化与功能增强**
+
+从架构顶层进行全面优化，新增多个核心功能模块，完善集成测试体系。
+
+1. **角色协作机制**
+   - 新增 `RoleCollaborationManager` 管理角色协作
+   - 新增 `MessageBus` 实现角色间消息传递（优先级队列、广播、订阅）
+   - 支持产出物转移和协作快照
+
+2. **任务依赖管理**
+   - 新增 `DependencyGraph` 实现任务依赖图
+   - 支持 DFS 循环依赖检测
+   - 支持拓扑排序确定执行顺序
+   - 支持影响分析和 Mermaid 可视化
+
+3. **Hooks 集成层**
+   - 新增 `HooksIntegration` 统一管理 Pre/Post Hooks
+   - 支持阻塞/非阻塞模式
+   - 集成到 `develop()` 和 `fix_bug()` 流程
+
+4. **代码生成辅助**
+   - 新增 `CodeGenerator` 代码生成器
+   - 内置函数、类、测试、API端点等模板
+   - 支持架构约束检查（禁止 eval/exec、硬编码密钥等）
+   - 集成到 `Developer` 角色作为辅助工具
+
+5. **文档自动同步**
+   - 新增 `DocumentSyncManager` 文档版本同步
+   - 支持 MD5/SHA256 版本哈希
+   - 支持一致性检查
+
+6. **TDD 工作流**
+   - 新增 `TDDWorkflow` 实现 Red-Green-Refactor 循环
+   - 支持测试覆盖率追踪
+   - 支持失败修复建议
+
+7. **Bug 修复**
+   - 修复 `CodeReviewer.role_type` 返回错误类型问题
+   - 修复 `BugHunter.role_type` 返回错误类型问题
+   - 确保判别器角色可被正确查询
+
+8. **测试体系完善**
+   - 新增 45 个全流程集成测试
+   - 总测试数量：395 个（全部通过）
+   - 覆盖：初始化、角色调度、GAN机制、记忆管理、Hooks、协作、文档同步、代码生成、TDD、依赖管理
+
+**API 变更**
+
+```python
+# 新增：角色协作
+harness._collaboration.send_message(from_role="pm", to_role="dev", content={})
+harness._collaboration.transfer_artifact(from_role="dev", to_role="reviewer", ...)
+
+# 新增：依赖图
+pipeline.has_circular_dependency()
+pipeline.get_execution_order()
+pipeline.to_mermaid()
+
+# 新增：TDD 模式
+harness.enable_tdd()
+harness.develop("功能", use_tdd=True)
+
+# 新增：代码生成（Developer 角色）
+developer.generate_function("calculate_sum", params="a, b", body="return a + b")
+developer.generate_class("UserService", init_params="self, db")
+developer.generate_test("user_login", arrange="...", act="...", assertion="...")
+```
+
+### v0.6.0
 
 **GAN 对抗机制深度融合**
 

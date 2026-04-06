@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-pyha_hook.py - Claude Code Hooks 桥梁脚本 (增强版)
+harnessgenj_hook.py - Claude Code Hooks 桥梁脚本 (增强版)
 """
 
 import os
@@ -138,7 +138,7 @@ def inject_context_reminder() -> str:
 def main():
     """主入口"""
     if len(sys.argv) < 2:
-        print("Usage: pyha_hook.py --post|--security|--reminder", file=sys.stderr)
+        print("Usage: harnessgenj_hook.py --post|--security|--reminder", file=sys.stderr)
         return 1
     command = sys.argv[1]
     if command == "--post":

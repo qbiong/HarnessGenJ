@@ -14,7 +14,7 @@
 
 **现状问题**:
 - `HooksManager` 是纯 Python 内部系统，无法直接与 Claude Code 交互
-- 当前桥梁脚本 `pyha_hook.py` 只是简单转发，功能有限
+- 当前桥梁脚本 `harnessgenj_hook.py` 只是简单转发，功能有限
 - `PreToolUse` 的 `$TOOL_INPUT_CONTENT` 变量在 Claude Code 中可能不完整（大文件分块写入时不触发完整检查）
 - `SecurityHook` 的敏感信息模式主要针对 Python，不适用于 Java/Kotlin 项目
 
@@ -85,7 +85,7 @@ LANGUAGE_PATTERNS = {
 
 **推荐方案 B 实现**:
 ```python
-# pyha_hook.py 增强版
+# harnessgenj_hook.py 增强版
 def inject_context_reminder():
     """在关键操作前注入上下文提醒"""
     return """
@@ -207,12 +207,12 @@ def _estimate_tokens(self, content: str) -> int:
 **严重程度**: ⚠️ 中
 
 **现状问题**:
-- 每个项目需要单独配置 `pyha_hook.py`
+- 每个项目需要单独配置 `harnessgenj_hook.py`
 - settings.json hooks 配置复杂
 - 无自动化初始化流程
 
 **优化建议**:
-- 提供 `pyha init` CLI 命令自动生成配置
+- 提供 `harnessgenj init` CLI 命令自动生成配置
 - 支持全局 hooks 模板 + 项目级覆盖
 - 交互式配置向导
 
@@ -343,7 +343,7 @@ def sync_all_knowledge(self):
 # - $TOOL_NAME
 # - $TOOL_INPUT (JSON 格式的完整输入)
 
-# pyha_hook.py 改进
+# harnessgenj_hook.py 改进
 def main():
     import os
     import json
@@ -400,7 +400,7 @@ def main():
 |------|----------|----------|----------|
 | `chat()` | sessions.json + state.json + documents/*.md + project.json | 4-6 次 | 多文件串行写入 |
 | `record()` | documents/*.md + project.json + state.json | 3-4 次 | 无批量优化 |
-| `PostToolUse hook` | pyha_hook.py + documents/development.md + state.json | 3-4 次 | 每次写入触发 |
+| `PostToolUse hook` | harnessgenj_hook.py + documents/development.md + state.json | 3-4 次 | 每次写入触发 |
 
 **问题分析**:
 - 无缓存机制，每次操作直接写磁盘
@@ -527,12 +527,12 @@ def complete_task(self, task_id: str, summary: str = "") -> bool:
 
 ### 4.1 修复 PostToolUse Hooks
 
-**文件**: `.claude/pyha_hook.py`
+**文件**: `.claude/harnessgenj_hook.py`
 
 ```python
 #!/usr/bin/env python3
 """
-pyha_hook.py - Claude Code Hooks 桥梁脚本 (增强版)
+harnessgenj_hook.py - Claude Code Hooks 桥梁脚本 (增强版)
 """
 
 import os
@@ -595,7 +595,7 @@ if __name__ == "__main__":
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/pyha_hook.py\""
+            "command": "python \"$CLAUDE_PROJECT_DIR/.claude/harnessgenj_hook.py\""
           }
         ]
       }

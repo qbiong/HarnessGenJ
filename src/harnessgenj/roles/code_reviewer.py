@@ -121,9 +121,7 @@ class CodeReviewer(AgentRole):
 
     @property
     def role_type(self) -> RoleType:
-        # 使用自定义角色类型，这里用 TESTER 作为基础
-        # 实际应该扩展 RoleType 枚举
-        return RoleType.TESTER
+        return RoleType.CODE_REVIEWER
 
     @property
     def responsibilities(self) -> list[str]:

@@ -1,0 +1,18 @@
+{
+  "project_name": {
+    "content": "Default Project",
+    "importance": 100
+  },
+  "key1": {
+    "content": "内容1",
+    "importance": 50
+  },
+  "key2": {
+    "content": "重要内容",
+    "importance": 100
+  },
+  "tech_stack": {
+    "content": "Python",
+    "importance": 50
+  }
+}

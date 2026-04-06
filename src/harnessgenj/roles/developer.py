@@ -17,6 +17,11 @@ Developer Role - 开发人员角色（渐进式披露版）
 - 项目名称、技术栈
 - 当前任务需求
 - 相关设计摘要（只读）
+
+代码生成辅助:
+- 使用 CodeGenerator 生成模板代码
+- 快速生成函数、类、测试骨架
+- 架构约束自动检查
 """
 
 from typing import Any
@@ -30,6 +35,12 @@ from harnessgenj.roles.base import (
     RoleContext,
     SkillCategory,
     TaskType,
+)
+from harnessgenj.codegen import (
+    CodeGenerator,
+    GeneratorConfig,
+    GenerationResult,
+    create_code_generator,
 )
 
 
@@ -63,10 +74,13 @@ class Developer(AgentRole):
         role_id: str = "dev_1",
         name: str = "开发人员",
         context: RoleContext | None = None,
+        code_generator: CodeGenerator | None = None,
     ) -> None:
         super().__init__(role_id=role_id, name=name, context=context)
         self._dev_context: DeveloperContext = DeveloperContext()
         self._pm_callback: Any = None  # PM回调函数
+        # 代码生成器辅助工具
+        self._code_generator = code_generator or create_code_generator()
 
     @property
     def role_type(self) -> RoleType:
@@ -276,6 +290,132 @@ class Developer(AgentRole):
         }
 
         return result
+
+    # ==================== 代码生成辅助方法 ====================
+
+    def generate_function(
+        self,
+        name: str,
+        params: str = "",
+        description: str = "",
+        body: str = "pass",
+        return_value: str = "None",
+    ) -> GenerationResult:
+        """
+        使用代码生成器生成函数
+
+        Args:
+            name: 函数名
+            params: 参数列表
+            description: 函数描述
+            body: 函数体
+            return_value: 返回值
+
+        Returns:
+            GenerationResult: 生成结果
+        """
+        return self._code_generator.generate_function(
+            name=name,
+            params=params,
+            description=description,
+            body=body,
+            return_value=return_value,
+        )
+
+    def generate_class(
+        self,
+        name: str,
+        description: str = "",
+        init_params: str = "",
+        init_body: str = "pass",
+    ) -> GenerationResult:
+        """
+        使用代码生成器生成类
+
+        Args:
+            name: 类名
+            description: 类描述
+            init_params: __init__ 参数
+            init_body: __init__ 方法体
+
+        Returns:
+            GenerationResult: 生成结果
+        """
+        return self._code_generator.generate_class(
+            name=name,
+            description=description,
+            init_params=init_params,
+            init_body=init_body,
+        )
+
+    def generate_test(
+        self,
+        test_name: str,
+        description: str = "",
+        arrange: str = "# 准备",
+        act: str = "# 执行",
+        assertion: str = "True",
+    ) -> GenerationResult:
+        """
+        使用代码生成器生成测试
+
+        Args:
+            test_name: 测试名称
+            description: 测试描述
+            arrange: Arrange 部分
+            act: Act 部分
+            assertion: Assert 部分
+
+        Returns:
+            GenerationResult: 生成结果
+        """
+        return self._code_generator.generate_test(
+            test_name=test_name,
+            description=description,
+            arrange=arrange,
+            act=act,
+            assertion=assertion,
+        )
+
+    def generate_from_template(
+        self,
+        template_name: str,
+        variables: dict[str, Any],
+    ) -> GenerationResult:
+        """
+        从模板生成代码
+
+        Args:
+            template_name: 模板名称
+            variables: 变量值
+
+        Returns:
+            GenerationResult: 生成结果
+        """
+        return self._code_generator.generate_from_template(template_name, variables)
+
+    def add_code_constraint(self, name: str, pattern: str, message: str, severity: str = "error") -> None:
+        """
+        添加代码架构约束
+
+        Args:
+            name: 约束名称
+            pattern: 检测正则模式
+            message: 错误消息
+            severity: 严重程度 (error | warning)
+        """
+        from harnessgenj.codegen.generator import ArchitectureConstraint
+        self._code_generator.add_constraint(ArchitectureConstraint(
+            name=name,
+            description=message,
+            check_pattern=pattern,
+            error_message=message,
+            severity=severity,
+        ))
+
+    def get_code_generator_stats(self) -> dict[str, Any]:
+        """获取代码生成器统计"""
+        return self._code_generator.get_stats()
 
     # ==================== 与PM通信 ====================
 

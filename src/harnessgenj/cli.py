@@ -44,11 +44,11 @@ def cmd_setup_hooks(args: Any) -> None:
     # 确保目录存在
     claude_dir.mkdir(parents=True, exist_ok=True)
 
-    # 生成 pyha_hook.py
-    hook_script = claude_dir / "pyha_hook.py"
+    # 生成 harnessgenj_hook.py
+    hook_script = claude_dir / "harnessgenj_hook.py"
     hook_content = '''#!/usr/bin/env python3
 """
-pyha_hook.py - Claude Code Hooks 桥梁脚本 (自动生成)
+harnessgenj_hook.py - Claude Code Hooks 桥梁脚本 (自动生成)
 
 功能:
 1. PostToolUse: 自动记录文件操作到开发日志
@@ -159,7 +159,7 @@ def handle_pre_tool_use_security() -> int:
 def main():
     """主入口"""
     if len(sys.argv) < 2:
-        print("Usage: pyha_hook.py --post|--security", file=sys.stderr)
+        print("Usage: harnessgenj_hook.py --post|--security", file=sys.stderr)
         return 1
 
     command = sys.argv[1]
@@ -200,7 +200,7 @@ if __name__ == "__main__":
                 "hooks": [
                     {
                         "type": "command",
-                        "command": 'python "$CLAUDE_PROJECT_DIR/.claude/pyha_hook.py" --security "$TOOL_INPUT_CONTENT"'
+                        "command": 'python "$CLAUDE_PROJECT_DIR/.claude/harnessgenj_hook.py" --security "$TOOL_INPUT_CONTENT"'
                     }
                 ]
             }
@@ -211,7 +211,7 @@ if __name__ == "__main__":
                 "hooks": [
                     {
                         "type": "command",
-                        "command": 'python "$CLAUDE_PROJECT_DIR/.claude/pyha_hook.py" --post'
+                        "command": 'python "$CLAUDE_PROJECT_DIR/.claude/harnessgenj_hook.py" --post'
                     }
                 ]
             }

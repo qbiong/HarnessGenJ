@@ -11,6 +11,7 @@ Harness Layer - Built-in Capabilities
 2. Hooks - 质量门禁，确定性规则约束
 3. HumanLoop - 人机交互节点
 4. Adversarial - 对抗性质量保证
+5. Decorators - 便利性装饰器
 """
 
 from harnessgenj.harness.human_loop import HumanLoop, ApprovalRequest
@@ -46,6 +47,26 @@ from harnessgenj.harness.adversarial import (
     AdversarialResult,
     create_adversarial_workflow,
 )
+from harnessgenj.harness.decorators import (
+    trace_decision,
+    on_task_complete,
+    on_issue_found,
+    with_context,
+    LifecycleHooks,
+    lifecycle_hooks,
+    set_global_harness,
+    get_global_harness,
+)
+from harnessgenj.harness.git_integration import (
+    GitHooks,
+    create_git_hooks,
+)
+from harnessgenj.harness.hooks_integration import (
+    HooksIntegration,
+    HooksConfig,
+    HooksIntegrationBuilder,
+    create_hooks_integration,
+)
 
 __all__ = [
     # HumanLoop
@@ -79,4 +100,21 @@ __all__ = [
     "AdversarialWorkflow",
     "AdversarialResult",
     "create_adversarial_workflow",
+    # Decorators
+    "trace_decision",
+    "on_task_complete",
+    "on_issue_found",
+    "with_context",
+    "LifecycleHooks",
+    "lifecycle_hooks",
+    "set_global_harness",
+    "get_global_harness",
+    # Git Integration
+    "GitHooks",
+    "create_git_hooks",
+    # Hooks Integration
+    "HooksIntegration",
+    "HooksConfig",
+    "HooksIntegrationBuilder",
+    "create_hooks_integration",
 ]

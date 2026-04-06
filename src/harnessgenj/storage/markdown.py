@@ -11,7 +11,19 @@ Markdown Storage - 使用Markdown文件存储知识库
 from pathlib import Path
 from typing import Any
 from pydantic import BaseModel, Field
+from enum import Enum
 import time
+
+
+class KnowledgeType(str, Enum):
+    """知识条目类型"""
+
+    BUG_FIX = "bug_fix"                    # 问题修复记录
+    DECISION_PATTERN = "decision_pattern"  # 决策模式沉淀
+    ARCHITECTURE_CHANGE = "architecture"   # 架构演进追踪
+    TEST_CASE = "test_case"                # 测试用例库
+    SECURITY_ISSUE = "security_issue"      # 安全问题追踪
+    GENERAL = "general"                    # 通用知识
 
 
 class KnowledgeEntry(BaseModel):
@@ -21,11 +33,243 @@ class KnowledgeEntry(BaseModel):
     title: str = Field(..., description="标题")
     content: str = Field(..., description="内容")
     category: str = Field(default="general", description="分类")
+    knowledge_type: KnowledgeType = Field(default=KnowledgeType.GENERAL, description="知识类型")
     tags: list[str] = Field(default_factory=list, description="标签")
     importance: int = Field(default=50, ge=0, le=100, description="重要性")
     created_at: float = Field(default_factory=time.time, description="创建时间")
     updated_at: float = Field(default_factory=time.time, description="更新时间")
     metadata: dict[str, Any] = Field(default_factory=dict, description="元数据")
+
+    # 新增结构化字段
+    problem: str | None = Field(default=None, description="问题描述")
+    solution: str | None = Field(default=None, description="解决方案")
+    code_location: str | None = Field(default=None, description="代码位置（文件:行号）")
+    rationale: str | None = Field(default=None, description="决策理由")
+    alternatives: list[str] = Field(default_factory=list, description="备选方案")
+    verified: bool = Field(default=False, description="是否已验证")
+
+
+# ==================== 类型模板工厂 ====================
+
+def create_bug_fix_entry(
+    problem: str,
+    solution: str,
+    code_location: str | None = None,
+    tags: list[str] | None = None,
+) -> KnowledgeEntry:
+    """
+    创建 Bug 修复记录
+
+    Args:
+        problem: 问题描述
+        solution: 解决方案
+        code_location: 代码位置（如 "src/main.py:42"）
+        tags: 标签列表
+
+    Returns:
+        结构化的知识条目
+
+    使用示例:
+        entry = create_bug_fix_entry(
+            problem="登录页面验证码显示异常",
+            solution="修复 CSS z-index 问题",
+            code_location="src/views/login.py:156",
+        )
+    """
+    import uuid
+
+    return KnowledgeEntry(
+        id=f"bug-fix-{uuid.uuid4().hex[:8]}",
+        title=f"Bug修复: {problem[:50]}",
+        content=f"## 问题\n{problem}\n\n## 解决方案\n{solution}",
+        category="bug_fix",
+        knowledge_type=KnowledgeType.BUG_FIX,
+        problem=problem,
+        solution=solution,
+        code_location=code_location,
+        tags=tags or ["bug"],
+        importance=70,
+    )
+
+
+def create_decision_pattern_entry(
+    rationale: str,
+    choice: str,
+    alternatives: list[str] | None = None,
+    context: str | None = None,
+) -> KnowledgeEntry:
+    """
+    创建决策模式记录
+
+    Args:
+        rationale: 决策理由
+        choice: 选择的方案
+        alternatives: 备选方案列表
+        context: 决策上下文
+
+    Returns:
+        结构化的知识条目
+
+    使用示例:
+        entry = create_decision_pattern_entry(
+            rationale="PostgreSQL 更适合复杂查询场景",
+            choice="PostgreSQL",
+            alternatives=["MySQL", "MongoDB"],
+            context="电商系统数据库选型",
+        )
+    """
+    import uuid
+
+    alt_text = "\n".join(f"- {alt}" for alt in (alternatives or []))
+
+    return KnowledgeEntry(
+        id=f"decision-{uuid.uuid4().hex[:8]}",
+        title=f"决策: {choice}",
+        content=f"## 决策\n选择: {choice}\n\n## 理由\n{rationale}\n\n## 备选方案\n{alt_text}",
+        category="decision_pattern",
+        knowledge_type=KnowledgeType.DECISION_PATTERN,
+        rationale=rationale,
+        alternatives=alternatives or [],
+        metadata={"context": context} if context else {},
+        tags=["decision"],
+        importance=75,
+    )
+
+
+def create_architecture_change_entry(
+    before: str,
+    after: str,
+    reason: str,
+    affected_files: list[str] | None = None,
+) -> KnowledgeEntry:
+    """
+    创建架构变更记录
+
+    Args:
+        before: 变更前架构
+        after: 变更后架构
+        reason: 变更原因
+        affected_files: 受影响的文件列表
+
+    Returns:
+        结构化的知识条目
+
+    使用示例:
+        entry = create_architecture_change_entry(
+            before="单体架构",
+            after="微服务架构",
+            reason="支持独立部署和扩展",
+            affected_files=["src/api/", "src/services/"],
+        )
+    """
+    import uuid
+
+    return KnowledgeEntry(
+        id=f"arch-{uuid.uuid4().hex[:8]}",
+        title=f"架构变更: {before} → {after}",
+        content=f"## 变更前\n{before}\n\n## 变更后\n{after}\n\n## 原因\n{reason}",
+        category="architecture",
+        knowledge_type=KnowledgeType.ARCHITECTURE_CHANGE,
+        metadata={"affected_files": affected_files or []},
+        tags=["architecture"],
+        importance=90,  # 架构变更重要性高
+    )
+
+
+def create_test_case_entry(
+    scenario: str,
+    expected: str,
+    actual: str | None = None,
+    code_location: str | None = None,
+) -> KnowledgeEntry:
+    """
+    创建测试用例记录
+
+    Args:
+        scenario: 测试场景
+        expected: 预期结果
+        actual: 实际结果（可选）
+        code_location: 测试代码位置
+
+    Returns:
+        结构化的知识条目
+
+    使用示例:
+        entry = create_test_case_entry(
+            scenario="用户登录成功后跳转首页",
+            expected="跳转到 /home",
+            actual="跳转到 /dashboard",
+            code_location="tests/test_login.py:45",
+        )
+    """
+    import uuid
+
+    content = f"## 场景\n{scenario}\n\n## 预期\n{expected}"
+    if actual:
+        content += f"\n\n## 实际\n{actual}"
+
+    return KnowledgeEntry(
+        id=f"test-{uuid.uuid4().hex[:8]}",
+        title=f"测试: {scenario[:50]}",
+        content=content,
+        category="test_case",
+        knowledge_type=KnowledgeType.TEST_CASE,
+        code_location=code_location,
+        verified=actual == expected,
+        tags=["test"],
+        importance=60,
+    )
+
+
+def create_security_issue_entry(
+    vulnerability: str,
+    severity: str,
+    fix: str | None = None,
+    code_location: str | None = None,
+) -> KnowledgeEntry:
+    """
+    创建安全问题记录
+
+    Args:
+        vulnerability: 漏洞描述
+        severity: 严重程度（critical/high/medium/low）
+        fix: 修复方案
+        code_location: 代码位置
+
+    Returns:
+        结构化的知识条目
+
+    使用示例:
+        entry = create_security_issue_entry(
+            vulnerability="SQL注入漏洞",
+            severity="critical",
+            fix="使用参数化查询",
+            code_location="src/db/query.py:78",
+        )
+    """
+    import uuid
+
+    severity_importance = {
+        "critical": 100,
+        "high": 90,
+        "medium": 70,
+        "low": 50,
+    }
+
+    return KnowledgeEntry(
+        id=f"sec-{uuid.uuid4().hex[:8]}",
+        title=f"安全: [{severity.upper()}] {vulnerability[:50]}",
+        content=f"## 漏洞\n{vulnerability}\n\n## 严重程度\n{severity}\n\n## 修复\n{fix or '待修复'}",
+        category="security_issue",
+        knowledge_type=KnowledgeType.SECURITY_ISSUE,
+        problem=vulnerability,
+        solution=fix,
+        code_location=code_location,
+        metadata={"severity": severity},
+        tags=["security", severity],
+        importance=severity_importance.get(severity, 70),
+        verified=fix is not None,
+    )
 
 
 class MarkdownKnowledgeBase:

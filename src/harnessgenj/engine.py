@@ -54,6 +54,7 @@ from harnessgenj.workflow import (
     create_bugfix_pipeline,
     create_adversarial_pipeline,
 )
+from harnessgenj.workflow.collaboration import RoleCollaborationManager, create_collaboration_manager
 from harnessgenj.memory import MemoryManager
 from harnessgenj.storage import create_storage, StorageManager, StorageType
 from harnessgenj.session import (
@@ -69,6 +70,13 @@ from harnessgenj.quality.tracker import QualityTracker
 from harnessgenj.quality.task_adversarial import TaskAdversarialController
 from harnessgenj.quality.system_adversarial import SystemAdversarialController
 from harnessgenj.harness.adversarial import AdversarialWorkflow, AdversarialResult
+from harnessgenj.harness.hooks_integration import (
+    HooksIntegration,
+    HooksConfig,
+    create_hooks_integration,
+)
+from harnessgenj.sync.doc_sync import DocumentSyncManager, SyncConfig, create_sync_manager
+from harnessgenj.workflow.tdd_workflow import TDDWorkflow, TDDConfig, TDDCycle, create_tdd_workflow
 
 
 class HarnessStats(BaseModel):
@@ -104,6 +112,7 @@ class Harness:
         persistent: bool = True,
         workspace: str = ".harnessgenj",
         config_path: str | None = None,
+        auto_setup_team: bool = True,
     ) -> None:
         """
         初始化 Harness 实例
@@ -112,10 +121,15 @@ class Harness:
             project_name: 项目名称
             persistent: 是否持久化存储（默认 True）
             workspace: 工作空间目录（默认 .harnessgenj）
+            auto_setup_team: 是否自动创建核心团队（默认 True）
         """
         self.project_name = project_name
         self._workspace = workspace
         self._persistent = persistent
+
+        # 脏标记机制 - 用于增量保存
+        self._dirty = False
+        self._dirty_fields: dict[str, Any] = {}
 
         # 核心组件：统一记忆管理
         self.memory = MemoryManager(workspace)
@@ -178,9 +192,40 @@ class Harness:
         # 链接质量系统到记忆管理（使用方法调用而非直接属性赋值）
         self.memory.set_quality_system(self._score_manager, self._quality_tracker)
 
+        # Hooks 集成系统 - 默认启用
+        self._hooks_integration = create_hooks_integration(
+            enabled=True,
+            blocking_mode=True,
+        )
+
+        # 角色协作管理器 - 默认启用
+        self._collaboration = create_collaboration_manager(self.coordinator)
+
+        # 文档同步管理器 - 默认启用
+        self._doc_sync = create_sync_manager(
+            workspace=workspace,
+            memory_manager=self.memory,
+            config=SyncConfig(
+                enabled=persistent,
+                auto_sync=False,  # 手动触发同步，避免竞态
+                backup_enabled=True,
+            ),
+        )
+
+        # TDD 工作流管理器 - 按需启用
+        self._tdd_workflow: TDDWorkflow | None = None
+
         # 加载之前的工作状态
         if persistent:
             self._load_state()
+
+        # 自动创建核心团队（新增功能）
+        if auto_setup_team:
+            self._auto_setup_core_team()
+
+        # 设置全局 Harness 实例（供装饰器使用）
+        from harnessgenj.harness.decorators import set_global_harness
+        set_global_harness(self)
 
     @classmethod
     def from_project(
@@ -421,11 +466,106 @@ class Harness:
                 json.dump(data, f, ensure_ascii=False, indent=2)
 
             self.sessions.save()
+
+            # 清除脏标记
+            self._dirty = False
+            self._dirty_fields.clear()
+
             return True
         except Exception:
             return False
 
+    def _mark_dirty(self, field: str, value: Any) -> None:
+        """
+        标记字段为脏（需要保存）
+
+        Args:
+            field: 字段名
+            value: 字段值
+        """
+        self._dirty = True
+        self._dirty_fields[field] = value
+
+    def _flush_if_dirty(self) -> bool:
+        """
+        如果有脏数据则立即保存
+
+        Returns:
+            是否执行了保存操作
+        """
+        if self._dirty and self._persistent:
+            return self._save_state()
+        return False
+
+    def _save_critical(self, event: str) -> bool:
+        """
+        关键操作后立即持久化
+
+        Args:
+            event: 事件名称（task_complete, issue_found, decision_made 等）
+
+        Returns:
+            是否保存成功
+        """
+        # 记录事件到元数据
+        self._dirty_fields["last_critical_event"] = event
+        self._dirty_fields["last_critical_time"] = time.time()
+
+        return self._save_state()
+
     # ==================== 团队管理 ====================
+
+    def _auto_setup_core_team(self) -> dict[str, Any]:
+        """
+        自动创建核心团队（内部方法）
+
+        默认创建：
+        - CodeReviewer: 代码审查者（判别器）
+        - BugHunter: 漏洞猎手（判别器，激进审查）
+        - Developer: 开发者（生成器）
+        - ProjectManager: 项目经理（协调者）
+
+        Returns:
+            创建的团队信息
+        """
+        # 检查是否已有团队
+        if self._stats.team_size > 0:
+            return {"project": self.project_name, "team_size": self._stats.team_size, "members": []}
+
+        core_team = {
+            "developer": "开发者",
+            "code_reviewer": "代码审查者",
+            "bug_hunter": "漏洞猎手",
+            "project_manager": "项目经理",
+        }
+
+        role_type_map = {
+            "developer": RoleType.DEVELOPER,
+            "code_reviewer": RoleType.CODE_REVIEWER,
+            "bug_hunter": RoleType.BUG_HUNTER,
+            "project_manager": RoleType.PROJECT_MANAGER,
+        }
+
+        created = []
+        for role_type_str, name in core_team.items():
+            role_type = role_type_map.get(role_type_str)
+            if role_type:
+                role_id = f"{role_type_str}_1"
+                self.coordinator.create_role(role_type, role_id, name)
+                created.append({"type": role_type_str, "name": name, "id": role_id})
+
+                # 注册到积分系统
+                self._score_manager.register_role(role_type_str, role_id, name)
+
+        self._stats.team_size = len(created)
+        self._dirty = True
+        self._dirty_fields["team_size"] = len(created)
+
+        return {
+            "project": self.project_name,
+            "team_size": len(created),
+            "members": created,
+        }
 
     def setup_team(self, team_config: dict[str, str] | None = None) -> dict[str, Any]:
         """组建开发团队"""
@@ -481,6 +621,28 @@ class Harness:
         Returns:
             处理结果，包含任务ID、优先级、负责人等信息
         """
+        # Hooks: 请求验证检查
+        validation_result = self._hooks_integration.run_validation({
+            "data": {"request": request, "type": request_type},
+        })
+        if not validation_result.passed:
+            return {
+                "success": False,
+                "error": "请求验证失败",
+                "details": validation_result.errors,
+            }
+
+        # Hooks: 安全检查（防止恶意请求）
+        security_result = self._hooks_integration.run_security_check({
+            "content": request,
+        })
+        if not security_result.passed:
+            return {
+                "success": False,
+                "error": "安全检查失败",
+                "details": security_result.errors,
+            }
+
         timestamp = time.strftime('%Y-%m-%d %H:%M')
         task_id = f"TASK-{int(time.time_ns() % 1000000000)}-{uuid.uuid4().hex[:4]}"
 
@@ -539,11 +701,24 @@ class Harness:
             task_id: 任务ID
             summary: 完成摘要
         """
-        timestamp = time.strftime('%Y-%m-%d %H:%M')
-
         # 获取任务
         task = self.memory.get_task(task_id)
         if not task:
+            return False
+
+        timestamp = time.strftime('%Y-%m-%d %H:%M')
+
+        # Hooks: Post-Task 检查（测试通过验证等）
+        post_result = self._hooks_integration.run_post_task({
+            "task": task,
+            "summary": summary,
+        })
+        if not post_result.passed:
+            # 记录失败原因
+            task["status"] = "blocked_by_hooks"
+            task["hook_errors"] = post_result.errors
+            task["blocked_by"] = post_result.blocked_by
+            self.memory.store_task(task_id, task)
             return False
 
         # 判断任务类型
@@ -580,9 +755,42 @@ class Harness:
 
     # ==================== 快速开发 ====================
 
-    def develop(self, feature_request: str) -> dict[str, Any]:
-        """快速开发功能"""
+    def develop(
+        self,
+        feature_request: str,
+        *,
+        use_tdd: bool = False,
+        skip_hooks: bool = False,
+    ) -> dict[str, Any]:
+        """
+        快速开发功能
+
+        Args:
+            feature_request: 功能需求描述
+            use_tdd: 是否使用 TDD 模式（需要 TDD 工作流支持）
+            skip_hooks: 是否跳过 Hooks 检查
+
+        Returns:
+            开发结果
+        """
         task_info = self.receive_request(feature_request, request_type="feature")
+        task_id = task_info.get("task_id")
+
+        # Hooks: Pre-Task 检查（开发前验证）
+        if not skip_hooks:
+            pre_result = self._hooks_integration.run_pre_task({
+                "request": feature_request,
+                "type": "feature",
+                "task_id": task_id,
+            })
+            if not pre_result.passed:
+                return {
+                    "request": feature_request,
+                    "task_id": task_id,
+                    "status": "blocked_by_hooks",
+                    "errors": pre_result.errors,
+                    "blocked_by": pre_result.blocked_by,
+                }
 
         # 确保有开发团队
         if not self.coordinator.get_roles_by_type(RoleType.DEVELOPER):
@@ -590,46 +798,134 @@ class Harness:
         if not self.coordinator.get_roles_by_type(RoleType.TESTER):
             self.coordinator.create_role(RoleType.TESTER, "test_auto", "测试人员")
 
+        # 注册角色到协作管理器
+        self._register_roles_to_collaboration()
+
+        # 广播开发任务开始
+        self._collaboration.broadcast(
+            from_role="project_manager",
+            content={
+                "type": "task_started",
+                "task_id": task_id,
+                "description": feature_request,
+            },
+            exclude=["project_manager"],
+        )
+
+        # TDD 模式：使用 TDD 工作流
+        if use_tdd:
+            return self._develop_with_tdd(feature_request, task_id, skip_hooks)
+
         # 执行开发工作流
         result = self.coordinator.run_workflow("feature", {"feature_request": feature_request})
 
         if result.get("status") == "completed":
+            # Hooks: Post-Task 检查（开发后验证）
+            if not skip_hooks:
+                post_result = self._hooks_integration.run_post_task({
+                    "task_id": task_id,
+                    "workflow_result": result,
+                })
+                if not post_result.passed:
+                    return {
+                        "request": feature_request,
+                        "task_id": task_id,
+                        "status": "blocked_by_post_hooks",
+                        "errors": post_result.errors,
+                    }
+
             self._stats.features_developed += 1
             self._stats.workflows_completed += 1
             self.memory.store_message(f"功能开发完成: {feature_request}", "system")
-            if task_info.get("task_id"):
-                self.complete_task(task_info["task_id"], f"功能完成: {feature_request[:50]}")
+
+            # 同步进度文档
+            self._sync_progress_document()
+
+            if task_id:
+                self.complete_task(task_id, f"功能完成: {feature_request[:50]}")
             self._save_state()
 
         return {
             "request": feature_request,
-            "task_id": task_info.get("task_id"),
+            "task_id": task_id,
             "status": result.get("status"),
             "artifacts": result.get("artifacts", []),
         }
 
-    def fix_bug(self, bug_description: str) -> dict[str, Any]:
-        """快速修复 Bug"""
+    def fix_bug(
+        self,
+        bug_description: str,
+        *,
+        skip_hooks: bool = False,
+    ) -> dict[str, Any]:
+        """
+        快速修复 Bug
+
+        Args:
+            bug_description: Bug 描述
+            skip_hooks: 是否跳过 Hooks 检查
+
+        Returns:
+            修复结果
+        """
         task_info = self.receive_request(bug_description, request_type="bug")
+        task_id = task_info.get("task_id")
+
+        # Hooks: Pre-Task 检查（修复前验证）
+        if not skip_hooks:
+            pre_result = self._hooks_integration.run_pre_task({
+                "request": bug_description,
+                "type": "bug",
+                "task_id": task_id,
+            })
+            if not pre_result.passed:
+                return {
+                    "bug": bug_description,
+                    "task_id": task_id,
+                    "status": "blocked_by_hooks",
+                    "errors": pre_result.errors,
+                }
 
         if not self.coordinator.get_roles_by_type(RoleType.DEVELOPER):
             self.coordinator.create_role(RoleType.DEVELOPER, "dev_auto", "开发人员")
         if not self.coordinator.get_roles_by_type(RoleType.TESTER):
             self.coordinator.create_role(RoleType.TESTER, "test_auto", "测试人员")
 
+        # 注册角色到协作管理器
+        self._register_roles_to_collaboration()
+
         result = self.coordinator.run_workflow("bugfix", {"bug_report": bug_description})
 
         if result.get("status") == "completed":
+            # Hooks: Post-Task 检查（修复后验证）
+            if not skip_hooks:
+                post_result = self._hooks_integration.run_post_task({
+                    "task_id": task_id,
+                    "workflow_result": result,
+                    "type": "bug_fix",
+                })
+                if not post_result.passed:
+                    return {
+                        "bug": bug_description,
+                        "task_id": task_id,
+                        "status": "blocked_by_post_hooks",
+                        "errors": post_result.errors,
+                    }
+
             self._stats.bugs_fixed += 1
             self._stats.workflows_completed += 1
             self.memory.store_message(f"Bug修复完成: {bug_description}", "system")
-            if task_info.get("task_id"):
-                self.complete_task(task_info["task_id"], f"Bug修复: {bug_description[:50]}")
+
+            # 同步进度文档
+            self._sync_progress_document()
+
+            if task_id:
+                self.complete_task(task_id, f"Bug修复: {bug_description[:50]}")
             self._save_state()
 
         return {
             "bug": bug_description,
-            "task_id": task_info.get("task_id"),
+            "task_id": task_id,
             "status": result.get("status"),
         }
 
@@ -897,6 +1193,24 @@ HarnessGenJ 已初始化完成，你可以直接使用以下 API 与项目交互
             # 这里简化处理，实际应该获取开发者产出的代码
             code = f"# {feature_request}\n# 代码实现..."
 
+        # Hooks: 安全预检（在对抗性审查前拦截明显问题）
+        if code:
+            security_result = self._hooks_integration.run_security_check({
+                "code": code,
+            })
+            if not security_result.passed:
+                # 直接返回失败，避免浪费对抗性审查时间
+                return AdversarialResult(
+                    success=False,
+                    rounds=0,
+                    total_issues=len(security_result.errors),
+                    resolved_issues=0,
+                    quality_score=0,
+                    final_result="blocked_by_security_hooks",
+                    issues=[],
+                    duration=0.0,
+                )
+
         # 执行对抗性审查
         result = self._adversarial_workflow.execute_adversarial_review(
             code=code,
@@ -1081,6 +1395,137 @@ HarnessGenJ 已初始化完成，你可以直接使用以下 API 与项目交互
             "issues_found": result.issues_found,
             "issues_fixed": result.issues_fixed,
             "duration": result.duration,
+        }
+
+    # ==================== 内部辅助方法 ====================
+
+    def _register_roles_to_collaboration(self) -> None:
+        """将协调器中的角色注册到协作管理器"""
+        for role_info in self.coordinator.list_roles():
+            role_id = role_info.get("role_id")
+            role_type = role_info.get("role_type")
+            if role_id and role_type:
+                # 检查是否已注册
+                if not self._collaboration.get_role_state(role_id):
+                    self._collaboration.register_role(role_id, role_type)
+
+    def _sync_progress_document(self) -> None:
+        """同步进度文档"""
+        progress = self.memory.get_document("progress")
+        if progress:
+            # 注册文档（如果未注册）
+            if "progress.md" not in [d.doc_name for d in self._doc_sync.list_documents()]:
+                self._doc_sync.register_document("progress.md")
+            # 同步文档
+            self._doc_sync.sync_document("progress.md")
+
+    def get_doc_sync_status(self) -> dict[str, Any]:
+        """获取文档同步状态"""
+        return self._doc_sync.get_stats()
+
+    def get_collaboration_status(self) -> dict[str, Any]:
+        """获取协作状态"""
+        return {
+            "stats": self._collaboration.get_stats(),
+            "snapshot": self._collaboration.get_snapshot().model_dump(),
+        }
+
+    def get_tdd_status(self) -> dict[str, Any] | None:
+        """获取 TDD 工作流状态"""
+        if self._tdd_workflow:
+            return self._tdd_workflow.get_stats()
+        return None
+
+    def enable_tdd(self, config: TDDConfig | None = None) -> None:
+        """启用 TDD 工作流"""
+        self._tdd_workflow = create_tdd_workflow(config)
+
+    def disable_tdd(self) -> None:
+        """禁用 TDD 工作流"""
+        self._tdd_workflow = None
+
+    def _develop_with_tdd(
+        self,
+        feature_request: str,
+        task_id: str | None,
+        skip_hooks: bool,
+    ) -> dict[str, Any]:
+        """
+        使用 TDD 模式开发功能
+
+        Args:
+            feature_request: 功能需求
+            task_id: 任务 ID
+            skip_hooks: 是否跳过 Hooks
+
+        Returns:
+            开发结果
+        """
+        # 确保 TDD 工作流已启用
+        if not self._tdd_workflow:
+            self.enable_tdd()
+
+        # 开始 TDD 循环
+        cycle = self._tdd_workflow.start_cycle(feature_request)
+
+        # Red 阶段：写失败的测试
+        # 这里简化实现，实际应该由 Tester 角色生成测试
+        test_code = f'''
+def test_{feature_request.replace(" ", "_")}():
+    """Test for {feature_request}"""
+    # TODO: Implement test
+    assert False, "Test not implemented yet"
+'''
+        test_result = self._tdd_workflow.write_test(cycle, test_code)
+
+        # Green 阶段：写实现
+        # 这里简化实现，实际应该由 Developer 角色生成代码
+        impl_code = f'''
+def {feature_request.replace(" ", "_").lower()}():
+    """Implementation for {feature_request}"""
+    # TODO: Implement
+    pass
+'''
+        impl_result = self._tdd_workflow.write_implementation(cycle, impl_code)
+
+        # Refactor 阶段：重构（可选）
+        refactored_code = impl_code  # 简化：不重构
+        refactor_result, suggestions = self._tdd_workflow.refactor(cycle, refactored_code)
+
+        # 完成循环
+        cycle_result = self._tdd_workflow.complete_cycle(cycle)
+
+        # Hooks: Post-Task 检查
+        if not skip_hooks:
+            post_result = self._hooks_integration.run_post_task({
+                "task_id": task_id,
+                "tdd_cycle": cycle_result,
+            })
+            if not post_result.passed:
+                return {
+                    "request": feature_request,
+                    "task_id": task_id,
+                    "status": "blocked_by_post_hooks",
+                    "errors": post_result.errors,
+                    "tdd_cycle": cycle_result,
+                }
+
+        # 更新统计
+        if cycle_result.get("status") == "completed":
+            self._stats.features_developed += 1
+            self._stats.workflows_completed += 1
+            self.memory.store_message(f"TDD 功能开发完成: {feature_request}", "system")
+            self._sync_progress_document()
+            if task_id:
+                self.complete_task(task_id, f"TDD 功能完成: {feature_request[:50]}")
+            self._save_state()
+
+        return {
+            "request": feature_request,
+            "task_id": task_id,
+            "status": cycle_result.get("status"),
+            "tdd_cycle": cycle_result,
+            "coverage": cycle_result.get("coverage"),
         }
 
 

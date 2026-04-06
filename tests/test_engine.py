@@ -82,7 +82,7 @@ class TestTeamManagement:
 
     def test_setup_default_team(self):
         """测试默认团队创建"""
-        harness = Harness(persistent=False)
+        harness = Harness(persistent=False, auto_setup_team=False)
         result = harness.setup_team()
 
         assert result["team_size"] == 6
@@ -90,7 +90,7 @@ class TestTeamManagement:
 
     def test_setup_custom_team(self):
         """测试自定义团队"""
-        harness = Harness(persistent=False)
+        harness = Harness(persistent=False, auto_setup_team=False)
         result = harness.setup_team({
             "developer": "小李",
             "tester": "小张",
@@ -99,9 +99,17 @@ class TestTeamManagement:
         assert result["team_size"] == 2
         assert len(result["members"]) == 2
 
+    def test_auto_setup_team(self):
+        """测试自动团队创建"""
+        harness = Harness(persistent=False, auto_setup_team=True)
+
+        # 自动创建后应该有团队
+        team = harness.get_team()
+        assert len(team) >= 4  # 至少有 4 个核心成员
+
     def test_get_team(self):
         """测试获取团队"""
-        harness = Harness(persistent=False)
+        harness = Harness(persistent=False, auto_setup_team=False)
         harness.setup_team()
 
         team = harness.get_team()
