@@ -22,6 +22,10 @@ Harness Engineering 核心理念：通过工作流驱动角色协作
 - 对抗优化（GAN）
 - 单元测试
 - 集成测试
+
+记忆管理集成:
+- StageMemoryMapping: 定义阶段产出物到记忆区域的映射
+- WorkflowExecutor: 执行阶段并自动管理记忆读写
 """
 
 from harnessgenj.workflow.pipeline import (
@@ -55,6 +59,27 @@ from harnessgenj.workflow.intent_router import (
     ExtractedEntity,
     create_intent_router,
     identify_intent,
+)
+from harnessgenj.workflow.memory_mapping import (
+    StageMemoryMapping,
+    InputSource,
+    OutputTarget,
+    OutputAction,
+    MemoryRegion,
+    get_stage_mapping,
+    get_pipeline_mappings,
+    list_mappings,
+    DEVELOPMENT_PIPELINE_MAPPINGS,
+    BUGFIX_PIPELINE_MAPPINGS,
+    INTENT_PIPELINE_MAPPINGS,
+    INQUIRY_PIPELINE_MAPPINGS,
+    MANAGEMENT_PIPELINE_MAPPINGS,
+)
+from harnessgenj.workflow.executor import (
+    WorkflowExecutor,
+    StageResult,
+    WorkflowExecutionResult,
+    create_executor,
 )
 from harnessgenj.workflow.coordinator import WorkflowCoordinator, create_coordinator
 from harnessgenj.workflow.context import WorkflowContext
@@ -112,6 +137,25 @@ __all__ = [
     "ExtractedEntity",
     "create_intent_router",
     "identify_intent",
+    # Memory Mapping
+    "StageMemoryMapping",
+    "InputSource",
+    "OutputTarget",
+    "OutputAction",
+    "MemoryRegion",
+    "get_stage_mapping",
+    "get_pipeline_mappings",
+    "list_mappings",
+    "DEVELOPMENT_PIPELINE_MAPPINGS",
+    "BUGFIX_PIPELINE_MAPPINGS",
+    "INTENT_PIPELINE_MAPPINGS",
+    "INQUIRY_PIPELINE_MAPPINGS",
+    "MANAGEMENT_PIPELINE_MAPPINGS",
+    # Workflow Executor
+    "WorkflowExecutor",
+    "StageResult",
+    "WorkflowExecutionResult",
+    "create_executor",
     # Dependency
     "DependencyGraph",
     "TaskNode",

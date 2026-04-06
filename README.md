@@ -8,7 +8,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Tests](https://img.shields.io/badge/tests-419%20passed-green.svg)](tests/)
+[![Tests](https://img.shields.io/badge/tests-473%20passed-green.svg)](tests/)
 
 </div>
 
@@ -582,14 +582,37 @@ HarnessGenJ/
 │       ├── hooks_integration.py # Hooks 集成层
 │       └── adversarial.py    # 对抗性工作流
 │
-└── tests/                     # 测试文件（395个测试用例）
+└── tests/                     # 测试文件（473个测试用例）
 ```
 
 ---
 
 ## 更新日志
 
-### v0.8.0 (当前版本)
+### v0.8.1 (当前版本)
+
+**工作流与记忆管理深度集成**
+
+完善工作流系统与 JVM 分代记忆的映射关系，修复输出键名不一致问题。
+
+1. **Pipeline 与 Memory Mapping 一致性修复**
+   - 新增 `OutputTarget.source_key` 字段，支持 Pipeline 输出键到 Memory 存储键的映射
+   - 统一所有阶段的输入来源定义，补充缺失的 `user_stories`、`acceptance_criteria` 等输入
+
+2. **完善所有工作流的 Memory Mapping**
+   - 新增 `INQUIRY_PIPELINE_MAPPINGS`（3 阶段）
+   - 新增 `MANAGEMENT_PIPELINE_MAPPINGS`（3 阶段）
+   - 所有 5 种工作流现已完整覆盖 Memory 映射
+
+3. **意图识别增强**
+   - 优化 BUGFIX 意图识别，新增关键词："没有正确"、"不正确"、"不对"、"缺少"
+   - 增强复杂 Bug 描述的识别准确率
+
+4. **测试覆盖**
+   - 新增 54 个工作流相关测试
+   - 总测试数量：473 个（全部通过）
+
+### v0.8.0
 
 **意图识别与工作流重构**
 
@@ -620,9 +643,10 @@ HarnessGenJ/
    - `inquiry_pipeline`: 问题咨询
    - `management_pipeline`: 项目管理
 
-5. **测试覆盖**
-   - 新增 24 个意图识别和工作流测试
-   - 总测试数量：419 个（全部通过）
+5. **工作流记忆映射**
+   - 新增 `StageMemoryMapping` 定义阶段产出物到 JVM 记忆区域的映射
+   - 新增 `WorkflowExecutor` 执行阶段并自动管理记忆读写
+   - 支持 `source_key` 字段实现 Pipeline 输出键与 Memory 存储键的灵活映射
 
 **API 变更**
 

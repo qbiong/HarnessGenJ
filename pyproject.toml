@@ -1,6 +1,6 @@
 [project]
 name = "harnessgenj"
-version = "0.6.0"
+version = "0.8.1"
 description = "HarnessGenJ (HGJ) - Harness Engineering Framework with JVM-style Generational Memory for AI Agents"
 readme = "README.md"
 license = { text = "MIT" }
