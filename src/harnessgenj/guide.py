@@ -133,6 +133,62 @@ class OnboardingGuide:
     QUICK_ENABLE_PROMPT = "启用 HarnessGenJ 框架。执行 Harness.from_project('.') 初始化，汇报项目状态。"
     QUICK_ACTIVATE_PM_PROMPT = "进入 HarnessGenJ 项目经理角色。作为用户对接窗口，接收请求、分配任务、调度角色、追踪进度。确认并汇报当前状态。"
 
+    # Claude Code Hooks 配置引导
+    HOOKS_SETUP_GUIDE = """
+## 🔧 Claude Code Hooks 配置
+
+Hooks 是 HarnessGenJ 对抗审查机制生效的关键。配置后，每次代码写入都会自动触发审查。
+
+### 自动配置（推荐）
+
+运行以下命令自动配置：
+
+```bash
+harnessgenj setup-hooks
+```
+
+### 手动配置
+
+如果自动配置失败，手动创建 `.claude/settings.json`：
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python $CLAUDE_PROJECT_DIR/.claude/harnessgenj_hook.py --pre"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python $CLAUDE_PROJECT_DIR/.claude/harnessgenj_hook.py --post"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### 验证配置
+
+配置完成后，创建或修改一个文件，检查是否输出：
+```
+[HarnessGenJ] 代码审查中...
+[HarnessGenJ] 已记录到开发日志
+```
+"""
+
     # 使用方式提示文本
     USAGE_GUIDE = """
 ## 💬 开始使用 HarnessGenJ
@@ -444,13 +500,35 @@ harness.recall("api_key")
 
         # 完成
         print("\n" + "=" * 60)
-        print("引导完成！你现在可以开始使用 HarnessGenJ 了")
+        print("引导完成！欢迎使用 HarnessGenJ")
         print("=" * 60)
-        print("\n提示:")
-        print("  - 使用 harness.chat('你的需求') 开始对话")
-        print("  - 使用 harness.develop('功能描述') 快速开发")
-        print("  - 使用 harness.switch_session('角色') 切换对话")
-        print("  - 使用 harness.get_status() 查看项目状态")
+
+        # 框架简要介绍
+        print("\n[框架介绍]")
+        print("-" * 40)
+        print("HarnessGenJ 是一个 AI Agent 协作框架，核心能力包括：")
+        print()
+        print("  [GAN 对抗机制]")
+        print("  - 生成器(开发者)产出代码，判别器(审查者)检测问题")
+        print("  - 多轮对抗审查直到通过，确保代码质量")
+        print()
+        print("  [JVM 分代记忆]")
+        print("  - Permanent区：核心知识，永不回收")
+        print("  - Old区：长期文档，质量感知GC")
+        print("  - Eden区：新消息，频繁清理")
+        print()
+        print("  [角色协作]")
+        print("  - 产品经理、架构师、开发者、测试员等角色")
+        print("  - 项目经理作为用户对接窗口，自动调度团队")
+        print()
+        print("-" * 40)
+
+        print("\n[快速开始]")
+        print("  harness.chat('你的需求')      - 自然对话")
+        print("  harness.develop('功能描述')   - 开发功能")
+        print("  harness.fix_bug('Bug描述')    - 修复问题")
+        print("  harness.get_status()          - 查看状态")
+        print("\n详细文档: README.md")
         print("\n祝你使用愉快！\n")
 
         return config

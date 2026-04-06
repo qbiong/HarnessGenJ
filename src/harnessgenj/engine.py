@@ -89,6 +89,17 @@ from harnessgenj.harness.hooks_integration import (
     HooksConfig,
     create_hooks_integration,
 )
+from harnessgenj.harness.hooks_auto_setup import auto_setup_hooks, get_hooks_setup_status
+from harnessgenj.harness.tech_detector import (
+    detect_tech_stack,
+    update_agents_templates,
+    TechStackInfo,
+)
+from harnessgenj.harness.event_triggers import (
+    TriggerManager,
+    TriggerEvent,
+    create_trigger_manager,
+)
 from harnessgenj.sync.doc_sync import DocumentSyncManager, SyncConfig, create_sync_manager
 from harnessgenj.workflow.tdd_workflow import TDDWorkflow, TDDConfig, TDDCycle, create_tdd_workflow
 
@@ -232,9 +243,18 @@ class Harness:
         # 意图识别路由器
         self._intent_router = create_intent_router()
 
+        # 事件触发管理器 - 默认启用
+        self._trigger_manager = create_trigger_manager(self)
+
         # 加载之前的工作状态
         if persistent:
             self._load_state()
+
+        # 自动设置 Hooks（首次使用时）
+        if persistent:
+            hooks_status = get_hooks_setup_status()
+            if not hooks_status["hooks_configured"]:
+                auto_setup_hooks(silent=False)
 
         # 自动创建核心团队（新增功能）
         if auto_setup_team:
@@ -333,6 +353,11 @@ class Harness:
         # 创建 Harness 实例
         harness = cls(project_name, workspace=workspace)
 
+        # 自动设置 Hooks（首次使用时）
+        hooks_status = get_hooks_setup_status(project_path)
+        if not hooks_status["hooks_configured"]:
+            auto_setup_hooks(project_path, silent=False)
+
         # 导入文档到记忆系统
         harness._import_documents(documents)
 
@@ -399,45 +424,30 @@ class Harness:
             description = " ".join(desc_lines).strip()[:500]
             self.memory.project_info.description = description
 
-        # 检测技术栈
-        tech_indicators = {
-            "Python": ["requirements.txt", "setup.py", "pyproject.toml", ".py"],
-            "Node.js": ["package.json", ".js", ".ts"],
-            "Go": ["go.mod", ".go"],
-            "Rust": ["Cargo.toml", ".rs"],
-            "Java": ["pom.xml", "build.gradle", ".java"],
-        }
+        # 使用技术栈自动检测系统
+        tech_info = detect_tech_stack(project_path)
 
-        detected_tech = []
-        for tech, indicators in tech_indicators.items():
-            for indicator in indicators:
-                if os.path.exists(os.path.join(project_path, indicator)):
-                    detected_tech.append(tech)
-                    break
+        # 更新技术栈信息（统一存储到 project_info）
+        tech_stack = tech_info.main_language
+        if tech_info.frameworks:
+            tech_stack += " + " + " + ".join(tech_info.frameworks[:3])
 
-        # 检查文档中的技术关键词
-        all_content = " ".join(documents.values()).lower()
-        tech_keywords = {
-            "FastAPI": ["fastapi", "fast-api"],
-            "Django": ["django"],
-            "Flask": ["flask"],
-            "React": ["react"],
-            "Vue": ["vue"],
-            "PostgreSQL": ["postgresql", "postgres"],
-            "MySQL": ["mysql"],
-            "MongoDB": ["mongodb"],
-            "Redis": ["redis"],
-            "Docker": ["docker"],
-        }
+        # 唯一存储点：project_info.tech_stack
+        self.memory.project_info.tech_stack = tech_stack
 
-        for tech, keywords in tech_keywords.items():
-            if any(kw in all_content for kw in keywords):
-                detected_tech.append(tech)
+        # 存储详细技术栈信息用于后续查询
+        self.memory.store_knowledge("tech_info", tech_info.model_dump_json(), importance=80)
 
-        if detected_tech:
-            tech_stack = " + ".join(dict.fromkeys(detected_tech))
-            self.memory.project_info.tech_stack = tech_stack
-            self.memory.store_knowledge("tech_stack", tech_stack, importance=100)
+        # 自动更新 agents/*.md 模板以适配技术栈
+        if self._agents_knowledge:
+            update_result = update_agents_templates(self._workspace, tech_info)
+            # 记录更新结果
+            if update_result["updated"]:
+                self.memory.store_knowledge(
+                    "tech_templates_updated",
+                    ",".join(update_result["updated"]),
+                    importance=50
+                )
 
         # 更新项目状态
         self.memory.project_info.status = "initialized"
@@ -861,6 +871,12 @@ class Harness:
             if task_id:
                 self.complete_task(task_id, f"功能完成: {feature_request[:50]}")
             self._save_state()
+
+            # 触发任务完成事件
+            self._trigger_manager.trigger(
+                TriggerEvent.ON_TASK_COMPLETE,
+                {"task_id": task_id, "feature": feature_request, "status": "completed"},
+            )
 
         return {
             "request": feature_request,

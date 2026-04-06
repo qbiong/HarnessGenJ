@@ -67,6 +67,27 @@ from harnessgenj.harness.hooks_integration import (
     HooksIntegrationBuilder,
     create_hooks_integration,
 )
+from harnessgenj.harness.hooks_auto_setup import (
+    auto_setup_hooks,
+    get_hooks_setup_status,
+    check_hooks_configured,
+    create_hook_script,
+    update_settings_json,
+)
+from harnessgenj.harness.tech_detector import (
+    detect_tech_stack,
+    update_agents_templates,
+    TechStackInfo,
+    generate_tech_md_content,
+    generate_conventions_md_content,
+)
+from harnessgenj.harness.event_triggers import (
+    TriggerManager,
+    TriggerRule,
+    TriggerEvent,
+    TriggerResult,
+    create_trigger_manager,
+)
 
 __all__ = [
     # HumanLoop
@@ -117,4 +138,22 @@ __all__ = [
     "HooksConfig",
     "HooksIntegrationBuilder",
     "create_hooks_integration",
+    # Hooks Auto Setup
+    "auto_setup_hooks",
+    "get_hooks_setup_status",
+    "check_hooks_configured",
+    "create_hook_script",
+    "update_settings_json",
+    # Tech Stack Detector
+    "detect_tech_stack",
+    "update_agents_templates",
+    "TechStackInfo",
+    "generate_tech_md_content",
+    "generate_conventions_md_content",
+    # Event Triggers
+    "TriggerManager",
+    "TriggerRule",
+    "TriggerEvent",
+    "TriggerResult",
+    "create_trigger_manager",
 ]

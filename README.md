@@ -590,7 +590,55 @@ HarnessGenJ/
 
 ## 更新日志
 
-### v1.0.0 (当前版本)
+### v1.1.1 (当前版本)
+
+**首次接入引导优化**
+
+优化首次配置完成后的框架介绍，让用户快速了解核心能力。
+
+1. **引导信息增强**
+   - 配置完成后显示 GAN对抗机制介绍
+   - 显示 JVM分代记忆架构说明
+   - 显示角色协作模式概述
+
+2. **README更新**
+   - 修复更新日志版本号
+   - 补充架构优化详细内容
+
+### v1.1.0
+
+**架构顶层优化**
+
+解决框架核心模块间的冗余和分离问题，实现更紧密的集成。
+
+1. **安全检查模块整合**
+   - 提取 `SecurityHook` 安全模式为独立模块
+   - 新增 `create_security_hook_standalone()` 生成可复用安全检查脚本
+   - 消除 `hooks.py` 与 `hooks_auto_setup.py` 的重复检测逻辑
+
+2. **Hooks-TriggerManager 事件打通**
+   - 新增基于文件的异步事件队列（`.harnessgenj/events/`）
+   - `trigger_adversarial_review()` 写入事件文件
+   - `TriggerManager.process_pending_events()` 消费并触发角色
+
+3. **技术栈存储优化**
+   - 移除冗余存储点（从3个减少到1个）
+   - 统一使用 `MemoryManager.project_info.tech_stack`
+
+4. **StructuredKnowledge-Heap 集成**
+   - 新增 `set_heap()` 依赖注入方法
+   - 知识条目统一存储到 Heap Old 区
+   - 与 MemoryManager GC 机制协同工作
+
+5. **首次接入引导增强**
+   - 配置完成后显示简洁框架介绍
+   - 突出核心能力：GAN对抗、JVM分代记忆、角色协作
+
+6. **测试验证**
+   - 5个集成测试场景全部通过
+   - 验证：Hooks集成、技术栈存储、知识集成、事件触发、完整工作流
+
+### v1.0.0
 
 **智能对话交互优化**
 

@@ -9,6 +9,7 @@ Memory Module - JVM-style Memory Management
 - AutoAssembler: 自动装配
 - DocumentType: 文档类型常量
 - DOCUMENT_OWNERSHIP: 文档所有权配置
+- StructuredKnowledgeManager: 结构化知识管理器
 """
 
 from harnessgenj.memory.manager import (
@@ -39,6 +40,14 @@ from harnessgenj.memory.gc import (
 )
 from harnessgenj.memory.hotspot import HotspotDetector, HotspotInfo, CallCounter
 from harnessgenj.memory.assembler import AutoAssembler, AssemblyTemplate
+from harnessgenj.memory.structured_knowledge import (
+    StructuredKnowledgeManager,
+    KnowledgeEntry,
+    KnowledgeType,
+    CodeLocation,
+    KnowledgeIndex,
+    create_structured_knowledge_manager,
+)
 
 __all__ = [
     # 主入口
@@ -72,4 +81,11 @@ __all__ = [
     # Assembler
     "AutoAssembler",
     "AssemblyTemplate",
+    # Structured Knowledge
+    "StructuredKnowledgeManager",
+    "KnowledgeEntry",
+    "KnowledgeType",
+    "CodeLocation",
+    "KnowledgeIndex",
+    "create_structured_knowledge_manager",
 ]
