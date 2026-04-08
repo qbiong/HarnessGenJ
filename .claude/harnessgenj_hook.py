@@ -171,14 +171,14 @@ def append_to_development_log(content: str, context: str = "Hooks") -> bool:
 
 def trigger_adversarial_review(file_path: str, content: str) -> dict[str, Any]:
     """
-    触发对抗性审查（记录到积分系统）
+    触发对抗性审查（执行实际代码审查）
 
     Args:
         file_path: 文件路径
         content: 文件内容
 
     Returns:
-        审查结果
+        审查结果，包含审查是否触发和发现的问题列表
     """
     result = {
         "file": file_path,
@@ -191,9 +191,46 @@ def trigger_adversarial_review(file_path: str, content: str) -> dict[str, Any]:
     if not any(file_path.endswith(ext) for ext in code_extensions):
         return result
 
+    # 【新增】执行实际代码审查
+    try:
+        from harnessgenj import Harness
+        project_root = get_project_root()
+
+        # 加载项目配置（如果存在）
+        harness = None
+        try:
+            harness = Harness.from_project(str(project_root))
+        except Exception:
+            # 项目配置不存在，使用默认配置
+            harness = Harness(project_name=project_root.name)
+
+        # 调用快速审查（单轮审查，不进入完整对抗循环）
+        # quick_review() 返回 tuple[bool, list[str]] - (是否通过, 问题描述列表)
+        passed, issue_descriptions = harness.quick_review(content)
+        result["review_triggered"] = True
+        result["issues"] = [{"type": "review_issue", "message": desc} for desc in issue_descriptions]
+
+        # 输出审查结果
+        if issue_descriptions:
+            print(f"[HarnessGenJ] 发现 {len(issue_descriptions)} 个问题", file=sys.stderr)
+            for desc in issue_descriptions:
+                print(f"  - {desc}", file=sys.stderr)
+        else:
+            print("[HarnessGenJ] 代码审查通过", file=sys.stderr)
+
+    except ImportError:
+        # HarnessGenJ 未安装，跳过实际审查
+        print("[HarnessGenJ] 框架未安装，跳过代码审查", file=sys.stderr)
+    except Exception as e:
+        print(f"[HarnessGenJ] 审查失败: {e}", file=sys.stderr)
+
     # 记录到开发日志
     lines = content.count('\n') + 1 if content else 0
     log_content = f"代码文件变更: `{file_path}` ({lines} 行)"
+    if result["issues"]:
+        log_content += f"\n发现 {len(result['issues'])} 个问题"
+        for issue in result["issues"]:
+            log_content += f"\n  - {issue['message']}"
     append_to_development_log(log_content, context="AdversarialTrigger")
 
     # 更新积分系统（如果存在）
@@ -212,6 +249,8 @@ def trigger_adversarial_review(file_path: str, content: str) -> dict[str, Any]:
                 "file": file_path,
                 "lines": lines,
                 "triggered_by": "hooks",
+                "review_triggered": result["review_triggered"],
+                "issues_count": len(result["issues"]),
             }
             if "events" not in scores_data:
                 scores_data["events"] = []
@@ -220,6 +259,17 @@ def trigger_adversarial_review(file_path: str, content: str) -> dict[str, Any]:
             # 更新 developer 统计
             if "scores" in scores_data and "developer_1" in scores_data["scores"]:
                 scores_data["scores"]["developer_1"]["total_tasks"] += 1
+                # 发现问题时扣分
+                if result["issues"]:
+                    scores_data["scores"]["developer_1"]["score"] -= len(result["issues"])
+                else:
+                    # 审查通过加分
+                    scores_data["scores"]["developer_1"]["score"] += 5
+
+            # 更新 code_reviewer 统计（发现问题时加分）
+            if result["issues"] and "scores" in scores_data and "code_reviewer_1" in scores_data["scores"]:
+                scores_data["scores"]["code_reviewer_1"]["score"] += len(result["issues"])
+                scores_data["scores"]["code_reviewer_1"]["total_tasks"] += 1
 
             with open(scores_path, "w", encoding="utf-8") as f:
                 json.dump(scores_data, f, ensure_ascii=False, indent=2)
