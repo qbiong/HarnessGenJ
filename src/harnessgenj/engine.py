@@ -944,6 +944,14 @@ class Harness:
         task_info = self.receive_request(feature_request, request_type="feature")
         task_id = task_info.get("task_id")
 
+        # ==================== 新增：启动任务状态流转 ====================
+        # 将任务状态从 pending → in_progress
+        if task_id:
+            try:
+                self._task_state_machine.start(task_id)
+            except Exception:
+                pass  # 状态转换失败不影响主流程
+
         # Hooks: Pre-Task 检查（开发前验证）
         if not skip_hooks:
             pre_result = self._hooks_integration.run_pre_task({
@@ -1000,7 +1008,7 @@ class Harness:
                     elif isinstance(first_artifact, str):
                         code = first_artifact
 
-            # 使用混合集成层触发对抗审查
+            # 使用混合集成层触发对抗审查（事件记录）
             if code and not skip_hooks:
                 review_event = self._hybrid_integration.trigger_on_write_complete(
                     file_path=result.get("file_path", "unknown.py"),
@@ -1008,6 +1016,41 @@ class Harness:
                     metadata={"task_id": task_id, "feature": feature_request},
                 )
                 result["review_event"] = review_event.model_dump()
+
+                # ==================== 新增：执行 GAN 对抗审查 ====================
+                # 使用 AdversarialWorkflow 执行完整的对抗审查流程
+                try:
+                    adversarial = AdversarialWorkflow(
+                        score_manager=self._score_manager,
+                        quality_tracker=self._quality_tracker,
+                        memory_manager=self.memory,
+                    )
+
+                    adversarial_result = adversarial.execute_adversarial_review(
+                        code=code,
+                        generator_id="dev_auto",
+                        generator_type="developer",
+                        task_id=task_id,
+                        max_rounds=3,
+                        use_hunter=True,  # 启用 BugHunter 进行安全审查
+                        artifact_id=None,
+                    )
+
+                    # 记录对抗结果
+                    result["adversarial_result"] = adversarial_result.model_dump()
+
+                    # 根据对抗结果更新任务状态
+                    if adversarial_result.success:
+                        self._task_state_machine.submit_review(task_id, "对抗审查通过")
+                        self._task_state_machine.complete(task_id, "功能开发完成")
+                    else:
+                        # 审查未通过，记录问题
+                        result["issues"] = adversarial_result.total_issues
+                        result["status"] = "review_failed"
+
+                except Exception as e:
+                    # 对抗审查失败不影响主流程，仅记录
+                    result["adversarial_error"] = str(e)
 
             # Hooks: Post-Task 检查（开发后验证）
             if not skip_hooks:
@@ -1067,6 +1110,14 @@ class Harness:
         task_info = self.receive_request(bug_description, request_type="bug")
         task_id = task_info.get("task_id")
 
+        # ==================== 新增：启动任务状态流转 ====================
+        # 将任务状态从 pending → in_progress
+        if task_id:
+            try:
+                self._task_state_machine.start(task_id)
+            except Exception:
+                pass  # 状态转换失败不影响主流程
+
         # Hooks: Pre-Task 检查（修复前验证）
         if not skip_hooks:
             pre_result = self._hooks_integration.run_pre_task({
@@ -1093,6 +1144,47 @@ class Harness:
         result = self.coordinator.run_workflow("bugfix", {"bug_report": bug_description})
 
         if result.get("status") == "completed":
+            # ==================== 新增：获取修复代码并执行对抗审查 ====================
+            code = result.get("code", "")
+            if not code:
+                artifacts = result.get("artifacts", [])
+                if artifacts and isinstance(artifacts, list) and len(artifacts) > 0:
+                    first_artifact = artifacts[0]
+                    if isinstance(first_artifact, dict):
+                        code = first_artifact.get("content", "")
+                    elif isinstance(first_artifact, str):
+                        code = first_artifact
+
+            # 执行对抗审查
+            if code and not skip_hooks:
+                try:
+                    adversarial = AdversarialWorkflow(
+                        score_manager=self._score_manager,
+                        quality_tracker=self._quality_tracker,
+                        memory_manager=self.memory,
+                    )
+
+                    adversarial_result = adversarial.execute_adversarial_review(
+                        code=code,
+                        generator_id="dev_auto",
+                        generator_type="developer",
+                        task_id=task_id,
+                        max_rounds=3,
+                        use_hunter=True,  # Bug修复更需要安全审查
+                    )
+
+                    result["adversarial_result"] = adversarial_result.model_dump()
+
+                    if adversarial_result.success:
+                        self._task_state_machine.submit_review(task_id, "Bug修复审查通过")
+                        self._task_state_machine.complete(task_id, "Bug修复完成")
+                    else:
+                        result["issues"] = adversarial_result.total_issues
+                        result["status"] = "review_failed"
+
+                except Exception as e:
+                    result["adversarial_error"] = str(e)
+
             # Hooks: Post-Task 检查（修复后验证）
             if not skip_hooks:
                 post_result = self._hooks_integration.run_post_task({
@@ -1676,7 +1768,9 @@ harness.analyze_project()
     # ==================== 内部辅助方法 ====================
 
     def _register_roles_to_collaboration(self) -> None:
-        """将协调器中的角色注册到协作管理器"""
+        """将协调器中的角色注册到协作管理器，并设置消息订阅"""
+        from harnessgenj.workflow.message_bus import MessageType
+
         for role_info in self.coordinator.list_roles():
             role_id = role_info.get("role_id")
             role_type = role_info.get("role_type")
@@ -1684,6 +1778,76 @@ harness.analyze_project()
                 # 检查是否已注册
                 if not self._collaboration.get_role_state(role_id):
                     self._collaboration.register_role(role_id, role_type)
+
+                    # ==================== 新增：设置角色消息订阅 ====================
+                    # 根据角色类型订阅不同消息
+                    if role_type == "code_reviewer":
+                        # CodeReviewer 订阅代码变更通知
+                        self._collaboration._message_bus.subscribe(
+                            subscriber_id=role_id,
+                            message_types=[MessageType.NOTIFICATION, MessageType.REQUEST],
+                            callback=lambda msg: self._handle_review_request(msg, role_id),
+                        )
+                    elif role_type == "bug_hunter":
+                        # BugHunter 订阅任务完成和安全问题通知
+                        self._collaboration._message_bus.subscribe(
+                            subscriber_id=role_id,
+                            message_types=[MessageType.NOTIFICATION],
+                            callback=lambda msg: self._handle_hunt_request(msg, role_id),
+                        )
+                    elif role_type == "tester":
+                        # Tester 订阅任务完成通知
+                        self._collaboration._message_bus.subscribe(
+                            subscriber_id=role_id,
+                            message_types=[MessageType.NOTIFICATION],
+                            callback=lambda msg: self._handle_test_request(msg, role_id),
+                        )
+
+    def _handle_review_request(self, msg: Any, reviewer_id: str) -> None:
+        """处理审查请求消息"""
+        try:
+            content = msg.content if hasattr(msg, "content") else msg
+            if isinstance(content, dict):
+                file_path = content.get("file_path", "")
+                code = content.get("content", "")
+                if code and file_path:
+                    # 触发代码审查
+                    self._trigger_manager.trigger(
+                        TriggerEvent.ON_WRITE_COMPLETE,
+                        {"file_path": file_path, "content": code},
+                    )
+        except Exception:
+            pass  # 消息处理失败不影响主流程
+
+    def _handle_hunt_request(self, msg: Any, hunter_id: str) -> None:
+        """处理漏洞探测请求消息"""
+        try:
+            content = msg.content if hasattr(msg, "content") else msg
+            if isinstance(content, dict):
+                task_id = content.get("task_id", "")
+                if task_id:
+                    # 触发任务完成后的漏洞探测
+                    self._trigger_manager.trigger(
+                        TriggerEvent.ON_TASK_COMPLETE,
+                        {"task_id": task_id},
+                    )
+        except Exception:
+            pass
+
+    def _handle_test_request(self, msg: Any, tester_id: str) -> None:
+        """处理测试请求消息"""
+        try:
+            content = msg.content if hasattr(msg, "content") else msg
+            if isinstance(content, dict):
+                task_id = content.get("task_id", "")
+                if task_id:
+                    # 通知 Tester 进行测试
+                    self._trigger_manager.trigger(
+                        TriggerEvent.ON_TASK_COMPLETE,
+                        {"task_id": task_id},
+                    )
+        except Exception:
+            pass
 
     def _sync_progress_document(self) -> None:
         """同步进度文档"""

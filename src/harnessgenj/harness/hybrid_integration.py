@@ -294,9 +294,15 @@ class HybridIntegration:
 
         try:
             if self._active_mode == IntegrationMode.HOOKS:
-                # Hooks 模式：记录事件，实际触发由 Claude Code 完成
+                # Hooks 模式：记录事件，并触发 TriggerManager 执行角色审查
                 event.mode = IntegrationMode.HOOKS
                 self._stats["hooks_success"] += 1
+                # 关键修复：Hooks 模式下也需要触发 TriggerManager 激活角色
+                if self._trigger_manager:
+                    self._trigger_manager.trigger(
+                        TriggerEvent.ON_WRITE_COMPLETE,
+                        {"file_path": file_path, "content": content, "metadata": metadata or {}},
+                    )
 
             elif self._active_mode == IntegrationMode.BUILTIN:
                 # 内置模式：记录事件，并通过 TriggerManager 分发对抗审查

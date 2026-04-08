@@ -169,8 +169,8 @@ class TestHybridIntegration:
 
         assert event.success is True
         assert event.mode == IntegrationMode.HOOKS
-        # HOOKS 模式下不调用 TriggerManager
-        assert len(mock_trigger_manager.triggered_events) == 0
+        # HOOKS 模式下也会调用 TriggerManager 激活角色审查（修复后）
+        assert len(mock_trigger_manager.triggered_events) == 1
 
     def test_trigger_on_task_complete(self, hybrid_integration):
         """测试触发任务完成事件"""

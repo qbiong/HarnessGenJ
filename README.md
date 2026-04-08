@@ -590,6 +590,38 @@ HarnessGenJ/
 
 ## 更新日志
 
+### v1.2.4
+
+**核心功能激活修复**
+
+根据框架实际应用问题诊断，修复多个核心功能断裂点，使已实现功能真正生效。
+
+1. **Hooks 触发角色审查**
+   - 修复 `HybridIntegration.trigger_on_write_complete()` 在 Hooks 模式下不触发 TriggerManager 的问题
+   - 现在 Claude Code 的 Write/Edit 操作会真正激活 CodeReviewer 和 BugHunter 角色
+   - 断裂位置：`hybrid_integration.py:296-300`
+
+2. **任务状态流转修复**
+   - `develop()` 和 `fix_bug()` 现在会正确调用 `_task_state_machine.start()` 启动状态流转
+   - 任务状态从 `pending → in_progress → reviewing → completed` 完整流转
+   - 断裂位置：`engine.py:820`
+
+3. **GAN 对抗机制集成**
+   - `develop()` 和 `fix_bug()` 方法集成 `AdversarialWorkflow` 执行对抗审查
+   - 启用 BugHunter 进行安全漏洞探测
+   - 根据对抗结果更新任务状态和积分
+   - 断裂位置：`engine.py:926-1050`
+
+4. **角色消息订阅机制**
+   - `_register_roles_to_collaboration()` 设置角色的消息订阅回调
+   - CodeReviewer 订阅代码变更通知
+   - BugHunter 订阅任务完成和安全问题通知
+   - Tester 订阅任务完成通知
+
+5. **双向积分激励生效**
+   - 对抗审查执行后自动更新双方积分
+   - Generator 和 Discriminator 积分联动
+
 ### v1.2.3
 
 **框架应用问题修复**
