@@ -33,6 +33,7 @@ Harness - Harness Engineering 主入口
 """
 
 from typing import Any
+from pathlib import Path
 from pydantic import BaseModel, Field
 import time
 import os
@@ -289,6 +290,9 @@ class Harness:
         from harnessgenj.harness.decorators import set_global_harness
         set_global_harness(self)
 
+        # 生成初始监控报告（帮助用户了解框架状态）
+        self._generate_initial_monitor_report()
+
     @classmethod
     def from_project(
         cls,
@@ -526,6 +530,99 @@ class Harness:
             return True
         except Exception:
             return False
+
+    def _record_intent(self, intent_result: IntentResult) -> None:
+        """
+        记录意图识别结果到 intents.json
+
+        Args:
+            intent_result: 意图识别结果
+        """
+        try:
+            intents_path = Path(self._workspace) / "intents.json"
+
+            # 确保目录存在
+            intents_path.parent.mkdir(parents=True, exist_ok=True)
+
+            if intents_path.exists():
+                with open(intents_path, "r", encoding="utf-8") as f:
+                    intents = json.load(f)
+            else:
+                intents = {"records": [], "stats": {}}
+
+            # 添加记录
+            intents["records"].append({
+                "timestamp": time.time(),
+                "intent_type": intent_result.intent_type.value,
+                "confidence": intent_result.confidence,
+                "message_preview": intent_result.original_message[:100] if intent_result.original_message else "",
+            })
+
+            # 更新统计
+            stats = intents.get("stats", {})
+            type_count = stats.get(intent_result.intent_type.value, 0)
+            stats[intent_result.intent_type.value] = type_count + 1
+            intents["stats"] = stats
+
+            with open(intents_path, "w", encoding="utf-8") as f:
+                json.dump(intents, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass  # 不影响主流程
+
+    def _auto_extract_knowledge(self, task: dict, summary: str) -> None:
+        """
+        任务完成时自动提取关键信息存储到知识库
+
+        Args:
+            task: 任务信息
+            summary: 完成摘要
+        """
+        try:
+            # 提取关键知识点
+            knowledge_entries = []
+
+            # 1. 提取任务类型作为知识类别
+            task_type = task.get("category", "未知")
+            task_request = task.get("request", "")
+
+            # 2. 如果是 Bug 修复，记录 Bug 模式
+            if task_type in ("Bug修复", "Bug"):
+                knowledge_entries.append({
+                    "key": f"bug_pattern_{int(time.time())}",
+                    "value": f"问题: {task_request}\n解决: {summary}",
+                    "category": "bug_fix",
+                    "important": False,
+                })
+
+            # 3. 如果是功能开发，记录实现模式
+            elif task_type == "功能开发":
+                knowledge_entries.append({
+                    "key": f"feature_pattern_{int(time.time())}",
+                    "value": f"需求: {task_request}\n实现: {summary}",
+                    "category": "feature_impl",
+                    "important": False,
+                })
+
+            # 4. 存储所有提取的知识
+            for entry in knowledge_entries:
+                self.remember(
+                    entry["key"],
+                    entry["value"],
+                    important=entry.get("important", False),
+                )
+        except Exception:
+            pass  # 不影响主流程
+
+    def _generate_initial_monitor_report(self) -> None:
+        """
+        生成初始监控报告（框架初始化时自动调用）
+        """
+        try:
+            from harnessgenj.monitor import HGJMonitor
+            monitor = HGJMonitor(self._workspace)
+            monitor.save_report()
+        except Exception:
+            pass  # 不影响主流程
 
     def _mark_dirty(self, field: str, value: Any) -> None:
         """
@@ -806,7 +903,11 @@ class Harness:
                 progress
             )
             progress += f"\n  - **完成时间**: {timestamp}\n  - **完成说明**: {summary}\n"
-            self.memory.store_document("progress", progress)
+
+        # ==================== 新增：自动提取关键信息存储到知识库 ====================
+        self._auto_extract_knowledge(task, summary)
+
+        self.memory.store_document("progress", progress)
 
         # 更新统计
         if is_bug:
@@ -1078,6 +1179,9 @@ class Harness:
             # 使用意图识别路由器
             intent_result = self._intent_router.identify(message)
 
+            # 记录意图识别结果
+            self._record_intent(intent_result)
+
             # 根据意图类型处理（增强：所有类型都有处理）
             if intent_result.intent_type == IntentType.DEVELOPMENT:
                 task_info = self.receive_request(message, request_type="feature")
@@ -1241,37 +1345,67 @@ class Harness:
         """
         获取初始化提示（用于 Claude Code 对话初始化）
 
-        返回完整的初始化指导和项目上下文，让 Claude Code 能够：
-        1. 理解 HarnessGenJ 的核心概念
-        2. 知道如何使用核心 API
+        返回用户友好的初始化指导和项目上下文，让用户能够：
+        1. 快速理解如何使用框架
+        2. 知道可以直接说什么来触发功能
         3. 了解当前项目状态
 
         Returns:
             初始化提示字符串
         """
-        # 获取基础上下文
-        context = self.get_context_prompt()
+        # 获取项目信息
+        project_name = self.project_name or "未命名项目"
+        tech_stack = self.memory.project_info.tech_stack if hasattr(self.memory, 'project_info') else "未知"
 
-        # 添加初始化说明
-        init_header = """
-# HarnessGenJ 初始化指南
+        # 用户友好的初始化提示
+        init_prompt = f"""
+# 🚀 HGJ框架已就绪
 
-## 当前状态
-HarnessGenJ 已初始化完成，你可以直接使用以下 API 与项目交互。
+我是你的AI开发助手，已准备好协助你完成开发任务。
 
-## 工作流程
-1. 用户提出需求 → 调用 `receive_request()`
-2. 执行开发任务 → 调用 `develop()` 或手动实现
-3. 完成任务 → 调用 `complete_task()`
-4. 每次对话开始 → 调用 `get_context_prompt()` 获取上下文
+## 快速开始
 
-## 重要提示
-- 所有操作自动持久化，重启后自动恢复
-- 使用 `harness.remember(key, value, important=True)` 存储重要知识
-- 使用 `harness.recall(key)` 获取存储的知识
+### 你可以这样使用我：
+
+**方式一：直接描述需求**
+> "帮我实现一个用户登录功能"
+
+**方式二：让我修复问题**
+> "首页加载太慢了，帮我优化一下"
+
+**方式三：查看项目状态**
+> "当前项目进度如何？"
+
+---
+
+## 💡 建议：让我先完成项目分析
+
+执行以下命令，我会自动分析项目并建立知识库：
+
+```python
+harness.analyze_project()
+```
+
+---
+
+## 核心功能
+
+| 功能 | 使用方式 | 说明 |
+|------|----------|------|
+| 需求开发 | `harness.develop("需求描述")` | 执行完整开发流程 |
+| Bug修复 | `harness.fix_bug("问题描述")` | 执行修复流程 |
+| 对抗审查 | `harness.adversarial_develop("需求")` | 多轮审查确保质量 |
+| 查看状态 | `harness.get_status()` | 项目进度和团队状态 |
+| 存储知识 | `harness.remember("key", "value")` | 存储重要信息 |
+
+---
+
+**当前项目**: {project_name}
+**技术栈**: {tech_stack}
+**对话方式**: 直接与我对话，我会自动识别意图并执行相应操作。
 
 """
-        return init_header + context
+        return init_prompt
 
     # ==================== 对抗性质量保证 ====================
 
