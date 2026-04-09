@@ -442,6 +442,11 @@ class Harness:
             notifier._emit("     harness.fix_bug('问题描述')  # 修复Bug", NotifierLevel.INFO)
             notifier._emit("     harness.get_status()        # 查看状态", NotifierLevel.INFO)
 
+            # 输出 MCP 工具提示
+            notifier._emit("", NotifierLevel.INFO)
+            notifier._emit("  🔧 MCP 工具可用 (21个):", NotifierLevel.INFO)
+            notifier._emit("     task_develop, task_fix_bug, system_status...", NotifierLevel.INFO)
+
             # 输出积分系统提示
             notifier._emit("", NotifierLevel.INFO)
             notifier._emit("  💡 提示: 使用框架开发可获得积分奖励", NotifierLevel.INFO)
@@ -1796,6 +1801,19 @@ class Harness:
 
 **方式三：查看项目状态**
 > "当前项目进度如何？"
+
+---
+
+## 🔧 MCP 工具可用
+
+框架已暴露 21 个 MCP 工具，可通过 Claude Code 直接调用：
+
+| 类别 | 工具示例 |
+|------|----------|
+| 开发 | `task_develop`, `task_fix_bug` |
+| 内存 | `memory_store`, `memory_retrieve` |
+| 系统 | `system_status`, `system_scoreboard` |
+| 存储 | `storage_save`, `storage_search` |
 
 ---
 

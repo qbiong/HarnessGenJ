@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - **MCP Server 模块**: 框架作为 MCP Server 暴露工具，让 Claude Code 可直接调用
-  - 19 个内置工具：内存管理(6)、任务管理(6)、存储(4)、系统(3)
+  - 21 个内置工具：内存管理(6)、任务管理(6)、系统工具(5)、存储工具(4)
   - JSON-RPC 2.0 协议支持
   - stdio 通信模式
   - 工具注册和执行机制

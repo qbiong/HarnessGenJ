@@ -1,4 +1,4 @@
-# harnessgenj MCP Server Configuration
+# HarnessGenJ MCP Server Configuration
 #
 # 将此配置添加到 Claude Code 或其他 MCP 客户端的配置文件中
 #
@@ -17,22 +17,12 @@
 #   }
 # }
 #
-# 或者使用安装后的命令:
-# {
-#   "mcpServers": {
-#     "harnessgenj": {
-#       "command": "harnessgenj-mcp",
-#       "args": [],
-#       "env": {}
-#     }
-#   }
-# }
 
 $schema: https://github.com/modelcontextprotocol/spec/blob/main/schema/schema.json
 serverInfo:
   name: harnessgenj
-  version: 0.1.0
-  description: JVM-style Memory Management & OS-style Task Scheduling for AI Agents
+  version: 1.3.0
+  description: Harness Engineering Framework with JVM-style Memory for AI Agents
 
 capabilities:
   tools: true
@@ -40,61 +30,78 @@ capabilities:
   prompts: false
 
 tools:
-  # Memory Management Tools
+  # ==================== Memory Tools (6) ====================
   - name: memory_store
     description: 存储内容到记忆系统（JVM风格分代存储）
     category: memory
 
-  - name: memory_store_knowledge
-    description: 存储重要知识到Permanent区（永不回收）
-    category: memory
-
-  - name: memory_gc
-    description: 触发垃圾回收清理记忆
+  - name: memory_retrieve
+    description: 从记忆系统中检索内容
     category: memory
 
   - name: memory_status
     description: 获取记忆系统状态报告
     category: memory
 
-  - name: memory_health
-    description: 获取记忆系统健康报告
+  - name: memory_gc
+    description: 触发垃圾回收清理记忆
     category: memory
 
-  - name: memory_optimize
-    description: 自动优化记忆系统
+  - name: memory_store_document
+    description: 存储文档到记忆系统
     category: memory
 
-  # Task Management Tools
+  - name: memory_get_document
+    description: 从记忆系统获取文档
+    category: memory
+
+  # ==================== Task Tools (6) ====================
   - name: task_create
     description: 创建新任务
-    category: task
-
-  - name: task_create_chain
-    description: 创建任务链（顺序执行）
-    category: task
-
-  - name: task_create_parallel
-    description: 创建并行任务
-    category: task
-
-  - name: task_schedule
-    description: 调度执行任务
     category: task
 
   - name: task_complete
     description: 标记任务完成
     category: task
 
+  - name: task_develop
+    description: 开发新功能（完整工作流）
+    category: task
+
+  - name: task_fix_bug
+    description: 修复 Bug（完整工作流）
+    category: task
+
   - name: task_status
     description: 查询任务状态
     category: task
 
-  - name: task_list
-    description: 列出所有任务
+  - name: task_history
+    description: 获取任务执行历史
     category: task
 
-  # Storage Tools
+  # ==================== System Tools (5) ====================
+  - name: system_status
+    description: 获取整体系统状态
+    category: system
+
+  - name: system_health
+    description: 获取整体健康报告
+    category: system
+
+  - name: system_scoreboard
+    description: 获取积分排行榜
+    category: system
+
+  - name: system_report
+    description: 生成项目报告
+    category: system
+
+  - name: system_review
+    description: 执行代码审查
+    category: system
+
+  # ==================== Storage Tools (4) ====================
   - name: storage_save
     description: 保存数据到存储系统
     category: storage
@@ -107,15 +114,6 @@ tools:
     description: 保存知识到知识库
     category: storage
 
-  - name: storage_search_knowledge
+  - name: storage_search
     description: 搜索知识库
     category: storage
-
-  # System Tools
-  - name: system_status
-    description: 获取整体系统状态
-    category: system
-
-  - name: system_health
-    description: 获取整体健康报告
-    category: system

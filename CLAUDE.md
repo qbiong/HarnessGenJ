@@ -6,6 +6,52 @@
 
 **⚠️ 强制要求：所有开发任务必须通过 HarnessGenJ 框架执行**
 
+## MCP Server 集成（v1.3.0+）
+
+HarnessGenJ 现已支持 MCP (Model Context Protocol)，可通过 MCP 工具直接调用框架功能。
+
+### 可用 MCP 工具 (21个)
+
+| 类别 | 工具 | 用途 |
+|------|------|------|
+| **内存** | `memory_store` | 存储内容到记忆系统 |
+| | `memory_retrieve` | 从记忆系统检索内容 |
+| | `memory_status` | 获取记忆系统状态 |
+| | `memory_gc` | 触发垃圾回收 |
+| | `memory_store_document` | 存储文档 |
+| | `memory_get_document` | 获取文档 |
+| **任务** | `task_create` | 创建新任务 |
+| | `task_complete` | 完成任务 |
+| | `task_develop` | 开发功能（完整工作流） |
+| | `task_fix_bug` | 修复 Bug（完整工作流） |
+| | `task_status` | 查询任务状态 |
+| | `task_history` | 任务执行历史 |
+| **系统** | `system_status` | 系统状态 |
+| | `system_health` | 健康报告 |
+| | `system_scoreboard` | 积分排行 |
+| | `system_report` | 项目报告 |
+| | `system_review` | 代码审查 |
+| **存储** | `storage_save` | 保存数据 |
+| | `storage_load` | 加载数据 |
+| | `storage_save_knowledge` | 保存知识 |
+| | `storage_search` | 搜索知识库 |
+
+### MCP 工具调用示例
+
+```
+# 开发新功能
+task_develop(feature_request="实现用户登录功能")
+
+# 修复 Bug  
+task_fix_bug(bug_description="首页加载缓慢问题")
+
+# 存储重要知识
+memory_store(key="架构决策", content="使用JWT认证")
+
+# 查看积分排行
+system_scoreboard()
+```
+
 ## 框架使用指南
 
 ### 1. 初始化框架（每次对话开始时执行）
