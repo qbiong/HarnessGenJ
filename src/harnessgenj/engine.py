@@ -35,6 +35,7 @@ Harness - Harness Engineering 主入口
 from typing import Any
 from pathlib import Path
 from pydantic import BaseModel, Field
+from enum import Enum
 import time
 import os
 import json
@@ -115,6 +116,39 @@ from harnessgenj.workflow.task_state import (
 )
 from harnessgenj.sync.doc_sync import DocumentSyncManager, SyncConfig, create_sync_manager
 from harnessgenj.workflow.tdd_workflow import TDDWorkflow, TDDConfig, TDDCycle, create_tdd_workflow
+
+
+# ==================== 流程强制执行配置 ====================
+
+class SkipLevel(Enum):
+    """跳过级别 - 控制可跳过的检查项"""
+    NONE = "none"                # 不跳过任何检查（默认）
+    OPTIONAL_HOOKS = "optional"  # 只跳过可选检查（非阻塞型 Hooks）
+    ALL = "all"                  # 跳过所有检查（需要管理员权限）
+
+
+# 强制检查项（不可跳过）
+MANDATORY_CHECKS = [
+    "adversarial_review",   # 对抗审查 - 必须执行
+    "security_check",       # 安全检查 - 必须执行
+    "boundary_check",       # 边界检查 - 必须执行
+]
+
+
+class QualityGate(BaseModel):
+    """质量门禁配置"""
+    name: str = Field(description="门禁名称")
+    required: bool = Field(default=True, description="是否必须通过")
+    blocking: bool = Field(default=True, description="是否阻塞流程")
+    bypass_level: SkipLevel = Field(default=SkipLevel.ALL, description="绕过所需级别")
+
+
+# 强制质量门禁定义
+MANDATORY_GATES = [
+    QualityGate(name="adversarial_review", required=True, blocking=True),
+    QualityGate(name="security_check", required=True, blocking=True),
+    QualityGate(name="test_pass", required=True, blocking=True),
+]
 
 
 class HarnessStats(BaseModel):
@@ -894,20 +928,11 @@ class Harness:
         task["summary"] = summary
         self.memory.store_task(task_id, task)
 
-        # 更新进度文档
-        progress = self.memory.get_document("progress") or ""
-        if task_id in progress:
-            progress = re.sub(
-                r'(\*\*状态\*\*:\s*)\S+',
-                '**状态**: 已完成',
-                progress
-            )
-            progress += f"\n  - **完成时间**: {timestamp}\n  - **完成说明**: {summary}\n"
+        # ==================== 强制文档更新 ====================
+        self._update_documents_on_task_complete(task, summary, timestamp)
 
         # ==================== 新增：自动提取关键信息存储到知识库 ====================
         self._auto_extract_knowledge(task, summary)
-
-        self.memory.store_document("progress", progress)
 
         # 更新统计
         if is_bug:
@@ -921,6 +946,65 @@ class Harness:
         self._save_state()
         return True
 
+    def _update_documents_on_task_complete(
+        self,
+        task: dict[str, Any],
+        summary: str,
+        timestamp: str,
+    ) -> None:
+        """
+        任务完成后强制更新相关文档
+
+        Args:
+            task: 任务信息
+            summary: 完成摘要
+            timestamp: 时间戳
+        """
+        task_id = task.get("id", task.get("task_id", "unknown"))
+        category = task.get("category", "任务")
+        request = task.get("request", task.get("description", ""))
+
+        # 1. 更新进度文档
+        progress = self.memory.get_document("progress") or "# 项目进度\n"
+        if task_id in progress:
+            progress = re.sub(
+                r'(\*\*状态\*\*:\s*)\S+',
+                '**状态**: 已完成',
+                progress
+            )
+        progress += f"\n## {task_id} - 完成\n"
+        progress += f"- **类型**: {category}\n"
+        progress += f"- **描述**: {request[:100]}\n"
+        progress += f"- **完成时间**: {timestamp}\n"
+        progress += f"- **摘要**: {summary[:200]}\n"
+        self.memory.store_document("progress", progress)
+
+        # 2. 更新开发日志
+        dev_log = self.memory.get_document("development") or "# 开发日志\n"
+        dev_log += f"\n## [{timestamp}] {category}\n"
+        dev_log += f"**任务ID**: {task_id}\n"
+        dev_log += f"**请求**: {request[:200]}\n"
+        dev_log += f"**结果**: {summary[:500]}\n"
+        dev_log += "---\n"
+        self.memory.store_document("development", dev_log)
+
+        # 3. 通知用户文档已更新
+        try:
+            from harnessgenj.notify import get_notifier
+            notifier = get_notifier()
+            notifier._emit(
+                f"📄 文档已更新: progress.md, development.md",
+                "INFO"
+            )
+        except Exception:
+            pass
+
+        # 4. 触发文档同步（如果有）
+        try:
+            self._sync_progress_document()
+        except Exception:
+            pass
+
     # ==================== 快速开发 ====================
 
     def develop(
@@ -928,7 +1012,8 @@ class Harness:
         feature_request: str,
         *,
         use_tdd: bool = False,
-        skip_hooks: bool = False,
+        skip_level: SkipLevel = SkipLevel.NONE,
+        admin_override: bool = False,
     ) -> dict[str, Any]:
         """
         快速开发功能
@@ -936,13 +1021,27 @@ class Harness:
         Args:
             feature_request: 功能需求描述
             use_tdd: 是否使用 TDD 模式（需要 TDD 工作流支持）
-            skip_hooks: 是否跳过 Hooks 检查
+            skip_level: 跳过级别（控制可跳过的检查项）
+            admin_override: 管理员覆盖（允许跳过强制检查，会记录审计日志）
 
         Returns:
             开发结果
+
+        Note:
+            强制检查项（adversarial_review, security_check, boundary_check）不可跳过，
+            除非明确设置 admin_override=True。所有跳过操作都会被记录到审计日志。
         """
         task_info = self.receive_request(feature_request, request_type="feature")
         task_id = task_info.get("task_id")
+
+        # ==================== 新增：审计日志记录 ====================
+        if skip_level != SkipLevel.NONE or admin_override:
+            self._record_bypass_attempt(
+                action="develop",
+                skip_level=skip_level.value,
+                admin_override=admin_override,
+                task_id=task_id,
+            )
 
         # ==================== 新增：启动任务状态流转 ====================
         # 将任务状态从 pending → in_progress
@@ -953,7 +1052,8 @@ class Harness:
                 pass  # 状态转换失败不影响主流程
 
         # Hooks: Pre-Task 检查（开发前验证）
-        if not skip_hooks:
+        # 强制检查项不可跳过（除非管理员覆盖）
+        if not admin_override:
             pre_result = self._hooks_integration.run_pre_task({
                 "request": feature_request,
                 "type": "feature",
@@ -967,6 +1067,10 @@ class Harness:
                     "errors": pre_result.errors,
                     "blocked_by": pre_result.blocked_by,
                 }
+        elif skip_level == SkipLevel.NONE:
+            # admin_override=True 但 skip_level=NONE，仍执行强制检查
+            # 只有可选 Hooks 可跳过
+            pass
 
         # 确保有开发团队
         if not self.coordinator.get_roles_by_type(RoleType.DEVELOPER):
@@ -1000,7 +1104,7 @@ class Harness:
 
         # TDD 模式：使用 TDD 工作流
         if use_tdd:
-            return self._develop_with_tdd(feature_request, task_id, skip_hooks)
+            return self._develop_with_tdd(feature_request, task_id, skip_level, admin_override)
 
         # 执行开发工作流
         result = self.coordinator.run_workflow("feature", {"feature_request": feature_request})
@@ -1018,8 +1122,9 @@ class Harness:
                     elif isinstance(first_artifact, str):
                         code = first_artifact
 
-            # 使用混合集成层触发对抗审查（事件记录）
-            if code and not skip_hooks:
+            # ==================== 强制对抗审查（不可跳过） ====================
+            # 对抗审查是强制检查项，只有 admin_override=True 才能跳过
+            if code and (not admin_override or "adversarial_review" in MANDATORY_CHECKS):
                 review_event = self._hybrid_integration.trigger_on_write_complete(
                     file_path=result.get("file_path", "unknown.py"),
                     content=code,
@@ -1027,8 +1132,9 @@ class Harness:
                 )
                 result["review_event"] = review_event.model_dump()
 
-                # ==================== 新增：执行 GAN 对抗审查 ====================
+                # ==================== 执行 GAN 对抗审查（强制） ====================
                 # 使用 AdversarialWorkflow 执行完整的对抗审查流程
+                # 即使 admin_override=True，对抗审查也必须执行（除非特别声明）
                 try:
                     adversarial = AdversarialWorkflow(
                         score_manager=self._score_manager,
@@ -1058,17 +1164,39 @@ class Harness:
                         result["issues"] = adversarial_result.total_issues
                         result["status"] = "review_failed"
 
+                        # ==================== 新增：通知质量门禁阻塞 ====================
+                        try:
+                            from harnessgenj.notify import get_notifier
+                            notifier = get_notifier()
+                            notifier.notify_gate_blocked(
+                                gate_name="adversarial_review",
+                                reason=f"发现 {adversarial_result.total_issues} 个问题需要修复",
+                            )
+                        except Exception:
+                            pass
+
                 except Exception as e:
                     # 对抗审查失败不影响主流程，仅记录
                     result["adversarial_error"] = str(e)
 
             # Hooks: Post-Task 检查（开发后验证）
-            if not skip_hooks:
+            # 强制检查项不可跳过（除非管理员覆盖）
+            if not admin_override:
                 post_result = self._hooks_integration.run_post_task({
                     "task_id": task_id,
                     "workflow_result": result,
                 })
                 if not post_result.passed:
+                    # ==================== 新增：通知质量门禁阻塞 ====================
+                    try:
+                        from harnessgenj.notify import get_notifier
+                        notifier = get_notifier()
+                        notifier.notify_gate_blocked(
+                            gate_name="post_task_hooks",
+                            reason=post_result.errors[0] if post_result.errors else "未知错误",
+                        )
+                    except Exception:
+                        pass
                     return {
                         "request": feature_request,
                         "task_id": task_id,
@@ -1118,20 +1246,35 @@ class Harness:
         self,
         bug_description: str,
         *,
-        skip_hooks: bool = False,
+        skip_level: SkipLevel = SkipLevel.NONE,
+        admin_override: bool = False,
     ) -> dict[str, Any]:
         """
         快速修复 Bug
 
         Args:
             bug_description: Bug 描述
-            skip_hooks: 是否跳过 Hooks 检查
+            skip_level: 跳过级别（控制可跳过的检查项）
+            admin_override: 管理员覆盖（允许跳过强制检查，会记录审计日志）
 
         Returns:
             修复结果
+
+        Note:
+            强制检查项（adversarial_review, security_check, boundary_check）不可跳过，
+            除非明确设置 admin_override=True。所有跳过操作都会被记录到审计日志。
         """
         task_info = self.receive_request(bug_description, request_type="bug")
         task_id = task_info.get("task_id")
+
+        # ==================== 新增：审计日志记录 ====================
+        if skip_level != SkipLevel.NONE or admin_override:
+            self._record_bypass_attempt(
+                action="fix_bug",
+                skip_level=skip_level.value,
+                admin_override=admin_override,
+                task_id=task_id,
+            )
 
         # ==================== 新增：启动任务状态流转 ====================
         # 将任务状态从 pending → in_progress
@@ -1142,7 +1285,8 @@ class Harness:
                 pass  # 状态转换失败不影响主流程
 
         # Hooks: Pre-Task 检查（修复前验证）
-        if not skip_hooks:
+        # 强制检查项不可跳过（除非管理员覆盖）
+        if not admin_override:
             pre_result = self._hooks_integration.run_pre_task({
                 "request": bug_description,
                 "type": "bug",
@@ -1178,8 +1322,9 @@ class Harness:
                     elif isinstance(first_artifact, str):
                         code = first_artifact
 
-            # 执行对抗审查
-            if code and not skip_hooks:
+            # ==================== 强制对抗审查（不可跳过） ====================
+            # Bug修复更需要对抗审查，强制执行
+            if code:
                 try:
                     adversarial = AdversarialWorkflow(
                         score_manager=self._score_manager,
@@ -1205,17 +1350,39 @@ class Harness:
                         result["issues"] = adversarial_result.total_issues
                         result["status"] = "review_failed"
 
+                        # ==================== 新增：通知质量门禁阻塞 ====================
+                        try:
+                            from harnessgenj.notify import get_notifier
+                            notifier = get_notifier()
+                            notifier.notify_gate_blocked(
+                                gate_name="adversarial_review",
+                                reason=f"发现 {adversarial_result.total_issues} 个问题需要修复",
+                            )
+                        except Exception:
+                            pass
+
                 except Exception as e:
                     result["adversarial_error"] = str(e)
 
             # Hooks: Post-Task 检查（修复后验证）
-            if not skip_hooks:
+            # 强制检查项不可跳过（除非管理员覆盖）
+            if not admin_override:
                 post_result = self._hooks_integration.run_post_task({
                     "task_id": task_id,
                     "workflow_result": result,
                     "type": "bug_fix",
                 })
                 if not post_result.passed:
+                    # ==================== 新增：通知质量门禁阻塞 ====================
+                    try:
+                        from harnessgenj.notify import get_notifier
+                        notifier = get_notifier()
+                        notifier.notify_gate_blocked(
+                            gate_name="post_task_hooks",
+                            reason=post_result.errors[0] if post_result.errors else "未知错误",
+                        )
+                    except Exception:
+                        pass
                     return {
                         "bug": bug_description,
                         "task_id": task_id,
@@ -2127,7 +2294,8 @@ harness.analyze_project()
         self,
         feature_request: str,
         task_id: str | None,
-        skip_hooks: bool,
+        skip_level: SkipLevel,
+        admin_override: bool,
     ) -> dict[str, Any]:
         """
         使用 TDD 模式开发功能
@@ -2135,7 +2303,8 @@ harness.analyze_project()
         Args:
             feature_request: 功能需求
             task_id: 任务 ID
-            skip_hooks: 是否跳过 Hooks
+            skip_level: 跳过级别
+            admin_override: 管理员覆盖
 
         Returns:
             开发结果
@@ -2175,7 +2344,8 @@ def {feature_request.replace(" ", "_").lower()}():
         cycle_result = self._tdd_workflow.complete_cycle(cycle)
 
         # Hooks: Post-Task 检查
-        if not skip_hooks:
+        # 强制检查项不可跳过（除非管理员覆盖）
+        if not admin_override:
             post_result = self._hooks_integration.run_post_task({
                 "task_id": task_id,
                 "tdd_cycle": cycle_result,
@@ -2206,6 +2376,77 @@ def {feature_request.replace(" ", "_").lower()}():
             "tdd_cycle": cycle_result,
             "coverage": cycle_result.get("coverage"),
         }
+
+    def _record_bypass_attempt(
+        self,
+        action: str,
+        skip_level: str,
+        admin_override: bool,
+        task_id: str | None = None,
+    ) -> None:
+        """
+        记录跳过检查尝试到审计日志
+
+        Args:
+            action: 操作类型（develop/fix_bug）
+            skip_level: 跳过级别
+            admin_override: 是否管理员覆盖
+            task_id: 关联任务ID
+        """
+        try:
+            audit_path = Path(self._workspace) / "audit_log.json"
+
+            # 确保目录存在
+            audit_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # 加载现有日志
+            if audit_path.exists():
+                with open(audit_path, "r", encoding="utf-8") as f:
+                    audit_log = json.load(f)
+            else:
+                audit_log = {"bypass_attempts": [], "stats": {}}
+
+            # 添加记录
+            audit_log["bypass_attempts"].append({
+                "timestamp": time.time(),
+                "action": action,
+                "skip_level": skip_level,
+                "admin_override": admin_override,
+                "task_id": task_id,
+            })
+
+            # 更新统计
+            stats = audit_log.get("stats", {})
+            stats["total_bypass_attempts"] = stats.get("total_bypass_attempts", 0) + 1
+            stats[f"{action}_bypass_attempts"] = stats.get(f"{action}_bypass_attempts", 0) + 1
+            if admin_override:
+                stats["admin_override_count"] = stats.get("admin_override_count", 0) + 1
+            audit_log["stats"] = stats
+
+            # 保存日志
+            with open(audit_path, "w", encoding="utf-8") as f:
+                json.dump(audit_log, f, ensure_ascii=False, indent=2)
+
+            # 通知用户
+            try:
+                from harnessgenj.notify import get_notifier
+                notifier = get_notifier()
+                if admin_override:
+                    notifier._emit(
+                        f"⚠️ 管理员覆盖: 跳过 {skip_level} 级别检查 ({action})",
+                        "WARNING"
+                    )
+                    notifier._emit("   此操作已记录到审计日志", "INFO")
+                elif skip_level != "none":
+                    notifier._emit(
+                        f"📋 跳过级别: {skip_level} ({action})",
+                        "INFO"
+                    )
+            except Exception:
+                pass
+
+        except Exception:
+            pass  # 审计日志记录失败不影响主流程
 
 
 def create_harness(

@@ -13,7 +13,7 @@ A Harness Engineering Framework for AI Agent Collaboration
 - 一键执行: 快速完成功能开发/Bug修复
 """
 
-__version__ = "1.2.6"
+__version__ = "1.2.7"
 
 # 主入口
 from harnessgenj.engine import Harness, create_harness
@@ -133,6 +133,12 @@ from harnessgenj.quality import (
     IssueRecord,
     QualityTracker,
     FailurePattern,
+    # 违规管理
+    ViolationSeverity,
+    ViolationType,
+    ViolationRecord,
+    ViolationManager,
+    create_violation_manager,
 )
 
 # Maintenance Module - 主动文档维护
@@ -257,6 +263,12 @@ __all__ = [
     "IssueRecord",
     "QualityTracker",
     "FailurePattern",
+    # Quality - 违规管理
+    "ViolationSeverity",
+    "ViolationType",
+    "ViolationRecord",
+    "ViolationManager",
+    "create_violation_manager",
     # Maintenance - 主动文档维护
     "RequirementDetector",
     "DetectedRequirement",

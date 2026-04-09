@@ -336,6 +336,157 @@ class UserNotifier:
             self._indent = 1
             self._emit(f"详情: {detail[:200]}", NotifierLevel.DEBUG)
 
+    # ==================== 新增：流程强制执行通知 ====================
+
+    def notify_workflow_stage_required(
+        self,
+        current_stage: str,
+        required_stage: str,
+        reason: str,
+    ):
+        """
+        通知必须先完成某个阶段
+
+        Args:
+            current_stage: 当前阶段
+            required_stage: 需要先完成的阶段
+            reason: 原因说明
+        """
+        self._emit(
+            f"⛔ 当前阶段 '{current_stage}' 需要先完成 '{required_stage}'",
+            NotifierLevel.ERROR
+        )
+        self._emit(f"   原因: {reason}", NotifierLevel.INFO)
+        self._emit(f"   请执行: harness.run_stage('{required_stage}')", NotifierLevel.INFO)
+
+    def notify_boundary_violation(
+        self,
+        role_type: str,
+        role_id: str,
+        action: str,
+        reason: str,
+        suggestion: str,
+    ):
+        """
+        通知边界违规
+
+        Args:
+            role_type: 角色类型
+            role_id: 角色ID
+            action: 违规行为
+            reason: 违规原因
+            suggestion: 建议处理方式
+        """
+        self._emit(
+            f"⛔ 角色 [{role_type}] {role_id} 无权执行: {action}",
+            NotifierLevel.ERROR
+        )
+        self._emit(f"   原因: {reason}", NotifierLevel.WARNING)
+        if suggestion:
+            self._emit(f"   建议: {suggestion}", NotifierLevel.INFO)
+        self._emit("📋 违规已记录到审计日志", NotifierLevel.INFO)
+
+    def notify_gate_blocked(
+        self,
+        gate_name: str,
+        reason: str,
+    ):
+        """
+        通知质量门禁被阻止
+
+        Args:
+            gate_name: 门禁名称
+            reason: 阻止原因
+        """
+        self._emit(
+            f"🚫 质量门禁 '{gate_name}' 未通过",
+            NotifierLevel.ERROR
+        )
+        self._emit(f"   原因: {reason}", NotifierLevel.WARNING)
+        self._emit("   流程已暂停，请修复问题后重试", NotifierLevel.INFO)
+
+    def notify_process_guide(
+        self,
+        current_stage: str,
+        next_stages: list[str],
+        required_roles: list[str],
+    ):
+        """
+        通知流程指引
+
+        Args:
+            current_stage: 当前阶段
+            next_stages: 后续阶段列表
+            required_roles: 需要的角色列表
+        """
+        self._emit("📋 流程指引", NotifierLevel.INFO)
+        self._emit(f"   当前阶段: {current_stage}", NotifierLevel.INFO)
+        if next_stages:
+            self._emit(f"   后续阶段: {' → '.join(next_stages)}", NotifierLevel.INFO)
+        if required_roles:
+            self._emit(f"   需要角色: {', '.join(required_roles)}", NotifierLevel.INFO)
+
+    def notify_bypass_attempt(
+        self,
+        action: str,
+        skip_level: str,
+        admin_override: bool,
+    ):
+        """
+        通知跳过尝试
+
+        Args:
+            action: 操作类型
+            skip_level: 跳过级别
+            admin_override: 是否管理员覆盖
+        """
+        if admin_override:
+            self._emit(
+                f"⚠️ 管理员覆盖: 跳过 {skip_level} 级别检查 ({action})",
+                NotifierLevel.WARNING
+            )
+            self._emit("   此操作已记录到审计日志", NotifierLevel.INFO)
+        elif skip_level != "none":
+            self._emit(
+                f"📋 跳过级别: {skip_level} ({action})",
+                NotifierLevel.INFO
+            )
+
+    def notify_score_ranking(self, rankings: list[dict]):
+        """
+        通知积分排行
+
+        Args:
+            rankings: 排行列表，每项包含 role_type, role_id, score, grade
+        """
+        self._emit("🏆 积分排行:", NotifierLevel.SCORE)
+        self._indent = 1
+        for i, rank in enumerate(rankings[:5], 1):
+            grade_icon = {
+                "excellent": "🏆",
+                "good": "⭐",
+                "pass": "📌",
+                "warning": "⚠️",
+            }.get(rank.get("grade", ""), "")
+            self._emit(
+                f"{i}. {grade_icon} [{rank['role_type']}] {rank['role_id']}: {rank['score']}分",
+                NotifierLevel.SCORE
+            )
+        self._indent = 0
+
+    def notify_score_ranking_summary(self, total_roles: int, avg_score: float):
+        """
+        通知积分排行摘要
+
+        Args:
+            total_roles: 总角色数
+            avg_score: 平均积分
+        """
+        self._emit(
+            f"📊 团队积分: {total_roles} 个角色, 平均 {avg_score:.1f} 分",
+            NotifierLevel.SCORE
+        )
+
     def notify_debug(self, message: str):
         """
         通知调试信息

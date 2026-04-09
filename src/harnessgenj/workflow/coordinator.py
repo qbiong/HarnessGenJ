@@ -204,6 +204,40 @@ class WorkflowCoordinator:
         if not role:
             return {"status": "error", "message": "No available role for this stage"}
 
+        # ==================== 新增：边界检查强制执行 ====================
+        # 执行前检查角色是否有权限执行此阶段
+        boundary_result = role.check_boundary(f"execute_stage:{stage_name}")
+        if not boundary_result.allowed:
+            # 记录违规
+            self._record_boundary_violation(
+                role_id=role.role_id,
+                role_type=role.role_type.value if hasattr(role, 'role_type') else "unknown",
+                action=f"execute_stage:{stage_name}",
+                reason=boundary_result.reason,
+                suggestion=boundary_result.suggestion,
+            )
+
+            # 通知用户
+            try:
+                from harnessgenj.notify import get_notifier
+                notifier = get_notifier()
+                notifier.notify_boundary_violation(
+                    role_type=role.role_type.value if hasattr(role, 'role_type') else "unknown",
+                    role_id=role.role_id,
+                    action=stage_name,
+                    reason=boundary_result.reason,
+                    suggestion=boundary_result.suggestion or "请检查角色权限配置",
+                )
+            except Exception:
+                pass
+
+            return {
+                "status": "blocked",
+                "reason": f"角色 {role.role_id} 无权执行此操作",
+                "detail": boundary_result.reason,
+                "suggestion": boundary_result.suggestion,
+            }
+
         # 准备输入
         inputs = {}
         for input_name in stage.inputs:
@@ -273,6 +307,64 @@ class WorkflowCoordinator:
             pass
 
         return {"status": "failed", "message": "Failed to assign task"}
+
+    def _record_boundary_violation(
+        self,
+        role_id: str,
+        role_type: str,
+        action: str,
+        reason: str,
+        suggestion: str | None = None,
+    ) -> None:
+        """
+        记录边界违规到审计日志
+
+        Args:
+            role_id: 违规角色ID
+            role_type: 角色类型
+            action: 违规行为
+            reason: 违规原因
+            suggestion: 建议处理方式
+        """
+        try:
+            import json
+            from pathlib import Path
+            import time
+
+            # 尝试获取工作空间路径（从上下文或其他来源）
+            audit_path = Path(".harnessgenj") / "boundary_violations.json"
+            audit_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # 加载现有日志
+            if audit_path.exists():
+                with open(audit_path, "r", encoding="utf-8") as f:
+                    audit_log = json.load(f)
+            else:
+                audit_log = {"violations": [], "stats": {}}
+
+            # 添加记录
+            audit_log["violations"].append({
+                "timestamp": time.time(),
+                "role_id": role_id,
+                "role_type": role_type,
+                "action": action,
+                "reason": reason,
+                "suggestion": suggestion,
+                "blocked": True,  # 边界违规已被阻止
+            })
+
+            # 更新统计
+            stats = audit_log.get("stats", {})
+            stats["total_violations"] = stats.get("total_violations", 0) + 1
+            stats[f"{role_type}_violations"] = stats.get(f"{role_type}_violations", 0) + 1
+            audit_log["stats"] = stats
+
+            # 保存日志
+            with open(audit_path, "w", encoding="utf-8") as f:
+                json.dump(audit_log, f, ensure_ascii=False, indent=2)
+
+        except Exception:
+            pass  # 审计日志记录失败不影响主流程
 
     def run_workflow(
         self,

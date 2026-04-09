@@ -119,6 +119,18 @@ class ScoreRules:
     MISSED_BUG = -8           # 漏报真实Bug
     MISSED_CRITICAL = -15     # 漏报严重Bug
 
+    # ========== 违规惩罚规则（新增） ==========
+
+    BOUNDARY_VIOLATION = -5      # 边界违规
+    PERMISSION_DENIED = -3       # 权限拒绝
+    GATE_BYPASS_ATTEMPT = -10    # 尝试绕过门禁
+    UNAUTHORIZED_CODE_EDIT = -15 # 未授权修改代码
+
+    # ========== 合规奖励规则（新增） ==========
+
+    PROCESS_COMPLIANCE = +2      # 流程合规奖励
+    QUALITY_GATE_PASS = +3       # 质量门禁通过
+
     # ========== 严重程度映射 ==========
 
     SEVERITY_MULTIPLIER = {
@@ -441,6 +453,89 @@ class ScoreManager:
             self.on_bug_missed(discriminator_id, "critical", task_id)
 
         return gen_delta
+
+    # ==================== 违规与合规方法（新增） ====================
+
+    def record_violation(
+        self,
+        role_id: str,
+        violation_type: str,
+        action: str,
+        blocked: bool = True,
+        context: dict | None = None,
+    ) -> "ScoreEvent":
+        """
+        记录违规行为并扣分
+
+        Args:
+            role_id: 违规角色ID
+            violation_type: 违规类型 (boundary_violation/permission_denied/gate_bypass_attempt/unauthorized_code_edit)
+            action: 违规行为描述
+            blocked: 是否被阻止
+            context: 上下文信息
+
+        Returns:
+            积分事件记录
+        """
+        # 确定扣分
+        delta_map = {
+            "boundary_violation": ScoreRules.BOUNDARY_VIOLATION,
+            "permission_denied": ScoreRules.PERMISSION_DENIED,
+            "gate_bypass_attempt": ScoreRules.GATE_BYPASS_ATTEMPT,
+            "unauthorized_code_edit": ScoreRules.UNAUTHORIZED_CODE_EDIT,
+        }
+        delta = delta_map.get(violation_type, -5)
+
+        # 如果被阻止，扣分减半（尝试未成功）
+        if blocked:
+            delta = delta // 2
+
+        reason = f"违规行为: {action}" + (" (已阻止)" if blocked else " (未阻止)")
+
+        # 记录事件并更新积分
+        self._apply_delta(
+            role_id=role_id,
+            delta=delta,
+            event_type=f"violation:{violation_type}",
+            reason=reason,
+        )
+
+        # 返回最后一个事件
+        return self._events[-1] if self._events else None
+
+    def reward_compliance(
+        self,
+        role_id: str,
+        compliance_type: str,
+        task_id: str | None = None,
+    ) -> "ScoreEvent":
+        """
+        奖励合规行为
+
+        Args:
+            role_id: 角色ID
+            compliance_type: 合规类型 (process_compliance/quality_gate_pass)
+            task_id: 关联任务ID
+
+        Returns:
+            积分事件记录
+        """
+        delta_map = {
+            "process_compliance": ScoreRules.PROCESS_COMPLIANCE,
+            "quality_gate_pass": ScoreRules.QUALITY_GATE_PASS,
+        }
+        delta = delta_map.get(compliance_type, +1)
+
+        self._apply_delta(
+            role_id=role_id,
+            delta=delta,
+            event_type=f"compliance:{compliance_type}",
+            reason=f"合规行为: {compliance_type}",
+            task_id=task_id,
+        )
+
+        # 返回最后一个事件
+        return self._events[-1] if self._events else None
 
     # ==================== 内部方法 ====================
 

@@ -5,6 +5,59 @@ All notable changes to HarnessGenJ will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.7] - 2026-04-09
+
+### Added
+- **流程强制执行系统**: 确保所有角色严格遵守工作流程
+  - SkipLevel 枚举替代 skip_hooks 参数，支持分级跳过控制
+  - admin_override 参数允许管理员覆盖强制检查（记录审计日志）
+  - MANDATORY_CHECKS 和 MANDATORY_GATES 强制质量门禁
+- **边界检查强制执行**: `coordinator.execute_stage()` 集成边界检查
+  - 执行前检查角色是否有权限执行该阶段
+  - 违规记录到 boundary_violations.json
+- **工具权限运行时强制**: `AgentRole.execute_task()` 添加权限检查
+  - 任务执行前检查所需工具权限
+  - 权限不足时阻止执行并通知用户
+- **违规管理模块 (ViolationManager)**: 与积分系统联动
+  - ViolationSeverity 枚举：LOW/MEDIUM/HIGH/CRITICAL
+  - ViolationType 枚举：边界违规/权限拒绝/绕过门禁/未授权修改
+  - 违规记录自动触发积分扣减
+- **积分动机提示词 (SCORE_MOTIVATION_PROMPT)**: 让角色以追求高积分为目标
+  - 积分意义：职业信誉、团队地位、任务分配、晋升评估
+  - 积分排行：90+分（优秀）、70-89分（良好）、50-69分（合格）、<50分（警告）
+- **流程合规提示词 (PROCESS_COMPLIANCE_PROMPT)**: 明确告知违规后果
+- **强制文档更新**: 任务完成后自动更新相关文档
+  - 进度文档 (progress.md) 自动更新
+  - 开发日志 (development.md) 自动记录
+  - 用户通知文档更新状态
+
+### Changed
+- `develop()` 方法参数变更：
+  - 移除 `skip_hooks` 参数
+  - 新增 `skip_level: SkipLevel` 参数（默认 NONE）
+  - 新增 `admin_override: bool` 参数（默认 False）
+- `fix_bug()` 方法参数变更：同上
+- `ScoreManager` 新增违规惩罚规则：
+  - BOUNDARY_VIOLATION = -5
+  - PERMISSION_DENIED = -3
+  - GATE_BYPASS_ATTEMPT = -10
+  - UNAUTHORIZED_CODE_EDIT = -15
+- `ScoreManager` 新增合规奖励规则：
+  - PROCESS_COMPLIANCE = +2
+  - QUALITY_GATE_PASS = +3
+
+### Output Example
+```
+[HGJ] ⛔ 角色 [ProjectManager] pm_1 无权执行: edit_code
+[HGJ]    原因: ProjectManager 只能编辑文档，不能修改代码文件
+[HGJ]    建议: 请将代码修改任务分配给 Developer 角色
+[HGJ] 📋 违规已记录到审计日志
+
+[HGJ] 🚫 质量门禁 'adversarial_review' 未通过
+[HGJ]    原因: 发现 3 个问题需要修复
+[HGJ]    流程已暂停，请修复问题后重试
+```
+
 ## [1.2.6] - 2026-04-08
 
 ### Added

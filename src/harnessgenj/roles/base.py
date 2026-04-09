@@ -428,11 +428,65 @@ class AgentRole(ABC):
 
     # ==================== 新增：角色提示词构建 ====================
 
+    # 积分世界观提示词模板
+    SCORE_MOTIVATION_PROMPT = """
+## 积分系统：你的职业发展指标
+
+### 积分意义
+积分是衡量你工作表现的核心指标：
+- **职业信誉**: 积分反映你的专业能力和责任心
+- **团队地位**: 高积分角色在团队中拥有更高话语权
+- **任务分配**: 积分高的角色优先获得重要任务
+- **晋升评估**: 积分是晋升评估的关键依据
+
+### 积分目标
+你的目标是**最大化积分**：
+- 每个 task 都要追求高质量完成
+- 流程合规是获取积分的基础
+- 违规行为会严重损害你的职业信誉
+
+### 积分排行
+```
+🏆 优秀: 90+ 分 - 团队核心成员
+⭐ 良好: 70-89 分 - 稳定贡献者
+📌 合格: 50-69 分 - 需要提升
+⚠️ 警告: <50 分 - 可能被降级
+```
+
+### 获取高分的秘诀
+1. **流程合规**: 严格遵守工作流程 (+2 分/次)
+2. **质量优先**: 产出高质量代码，一轮通过审查 (+10 分)
+3. **持续改进**: 及时修复问题，不拖延
+4. **团队协作**: 主动帮助其他角色
+"""
+
+    PROCESS_COMPLIANCE_PROMPT = """
+## 流程合规要求
+
+你必须严格遵守以下工作流程：
+
+### 强制流程
+1. **任务接收**: 必须通过 assign_task() 接收任务
+2. **边界检查**: 执行前必须确认行为在职责范围内
+3. **产出提交**: 完成后必须提交产出物
+4. **对抗审查**: 代码产出必须经过 CodeReviewer 审查
+
+### 违规后果（严重影响积分）
+- 边界违规: 积分 -5 ~ -15，影响职业信誉
+- 跳过质量门禁: 积分 -10，可能被降级
+- 未授权修改代码: 积分 -15，严重警告
+
+### 合规奖励（提升职业信誉）
+- 流程合规: 积分 +2
+- 质量门禁通过: 积分 +3
+- 一轮通过审查: 积分 +10（最高荣誉）
+"""
+
     def build_role_prompt(self) -> str:
         """
-        构建角色提示词
+        构建角色提示词（含积分动机和流程合规）
 
-        包含职责定义、边界检查、自我反思等内容。
+        包含职责定义、边界检查、积分动机、流程合规等内容。
         子类可以覆盖此方法来定制提示词。
 
         Returns:
@@ -441,31 +495,73 @@ class AgentRole(ABC):
         parts = [
             f"你是项目的{self.name}。",
             "",
+            self.SCORE_MOTIVATION_PROMPT,  # 积分动机放在最前面
+            "",
             "## 职责范围",
         ]
 
         for resp in self.responsibilities:
             parts.append(f"- {resp}")
 
+        # 添加工具权限说明
+        parts.append("")
+        parts.append("## 工具权限")
+        permissions = self.get_tool_permissions()
+        perm_names = {
+            ToolPermission.READ: "读取文件",
+            ToolPermission.SEARCH: "搜索代码",
+            ToolPermission.EDIT_CODE: "编辑代码文件",
+            ToolPermission.EDIT_DOC: "编辑文档文件",
+            ToolPermission.TERMINAL: "执行终端命令",
+            ToolPermission.FETCH: "网络请求",
+        }
+        for perm in permissions:
+            parts.append(f"- ✅ {perm_names.get(perm, perm.value)}")
+
+        # 添加禁止行为
+        if self.forbidden_actions:
+            parts.append("")
+            parts.append("## 禁止行为（违规扣分，损害职业信誉）")
+            for forbidden in self.forbidden_actions:
+                parts.append(f"- ❌ {forbidden}")
+
+        # 添加决策权限
         if self.decision_authority:
             parts.append("")
             parts.append("## 决策权限")
             for auth in self.decision_authority:
                 parts.append(f"- {auth}")
 
-        if self.forbidden_actions:
-            parts.append("")
-            parts.append("## 禁止行为")
-            for forbidden in self.forbidden_actions:
-                parts.append(f"- ❌ {forbidden}")
-
+        # 添加无决策权限
         if self.no_decision_authority:
             parts.append("")
             parts.append("## 无决策权限（应回调相应角色）")
             for no_auth in self.no_decision_authority:
                 parts.append(f"- {no_auth}")
 
+        # 添加流程合规提示
+        parts.append("")
+        parts.append(self.PROCESS_COMPLIANCE_PROMPT)
+
+        # 添加自我反思提示
+        parts.append("")
+        parts.append(self._build_score_reflection_prompt())
+
         return "\n".join(parts)
+
+    def _build_score_reflection_prompt(self) -> str:
+        """构建积分反思提示词"""
+        return """
+## 每日积分反思
+
+完成工作后，问自己：
+- [ ] 我今天的操作是否都在职责范围内？
+- [ ] 我是否遵守了所有流程？
+- [ ] 我是否争取了一轮通过审查？
+- [ ] 我今天的积分是增加还是减少了？
+
+记住：**高积分 = 高职业信誉 = 团队核心成员**
+"""
 
     # ==================== 技能管理 ====================
 
@@ -535,13 +631,46 @@ class AgentRole(ABC):
 
     def execute_task(self) -> dict[str, Any]:
         """
-        执行当前任务
+        执行当前任务（带权限检查）
 
         Returns:
             执行结果
+
+        Note:
+            执行前会检查角色是否有执行该任务所需的权限。
+            如果权限不足，会记录违规并阻止执行。
         """
         if not self._current_task:
             return {"status": "error", "message": "No task assigned"}
+
+        # ==================== 新增：任务执行前权限检查 ====================
+        required_permissions = self._get_task_permissions(self._current_task)
+        for perm in required_permissions:
+            check = self.can_use_tool(perm)
+            if not check.allowed:
+                # 记录权限违规
+                self._log_permission_violation(perm, check.reason)
+
+                # 通知用户
+                try:
+                    from harnessgenj.notify import get_notifier
+                    notifier = get_notifier()
+                    notifier.notify_boundary_violation(
+                        role_type=self.role_type.value,
+                        role_id=self.role_id,
+                        action=f"use {perm.value}",
+                        reason=check.reason,
+                        suggestion=check.suggestion or "请检查角色权限配置",
+                    )
+                except Exception:
+                    pass
+
+                return {
+                    "status": "blocked",
+                    "error": f"权限不足: {check.reason}",
+                    "suggestion": check.suggestion,
+                    "required_permission": perm.value,
+                }
 
         task_type = self._current_task.get("type")
 
@@ -561,6 +690,107 @@ class AgentRole(ABC):
 
         self._current_task = None
         return result
+
+    def _get_task_permissions(self, task: dict) -> list["ToolPermission"]:
+        """
+        根据任务类型确定所需权限
+
+        Args:
+            task: 任务信息
+
+        Returns:
+            所需权限列表
+        """
+        task_type = task.get("type", "")
+        task_desc = task.get("description", "").lower()
+
+        # 根据任务类型或描述判断所需权限
+        if isinstance(task_type, TaskType):
+            type_permission_map = {
+                TaskType.IMPLEMENT_FEATURE: [ToolPermission.EDIT_CODE],
+                TaskType.FIX_BUG: [ToolPermission.EDIT_CODE],
+                TaskType.REFACTOR: [ToolPermission.EDIT_CODE],
+                TaskType.WRITE_TEST: [ToolPermission.EDIT_CODE],
+                TaskType.RUN_TEST: [ToolPermission.TERMINAL],
+                TaskType.WRITE_DOC: [ToolPermission.EDIT_DOC],
+                TaskType.UPDATE_DOC: [ToolPermission.EDIT_DOC],
+                TaskType.CODE_REVIEW: [ToolPermission.READ, ToolPermission.SEARCH],
+                TaskType.ANALYZE_REQUIREMENT: [ToolPermission.READ],
+                TaskType.DESIGN_SYSTEM: [ToolPermission.EDIT_DOC],
+            }
+            return type_permission_map.get(task_type, [ToolPermission.READ])
+
+        # 根据阶段名称或描述判断
+        if isinstance(task_type, str):
+            stage_lower = task_type.lower()
+            if any(kw in stage_lower for kw in ["development", "develop", "implement", "fix"]):
+                return [ToolPermission.EDIT_CODE]
+            elif any(kw in stage_lower for kw in ["test", "testing"]):
+                return [ToolPermission.EDIT_CODE, ToolPermission.TERMINAL]
+            elif any(kw in stage_lower for kw in ["design", "architecture"]):
+                return [ToolPermission.EDIT_DOC]
+            elif any(kw in stage_lower for kw in ["review", "audit"]):
+                return [ToolPermission.READ, ToolPermission.SEARCH]
+            elif any(kw in stage_lower for kw in ["doc", "document"]):
+                return [ToolPermission.EDIT_DOC]
+
+        # 根据描述判断
+        if any(kw in task_desc for kw in ["代码", "实现", "修改代码", "code", "implement"]):
+            return [ToolPermission.EDIT_CODE]
+        elif any(kw in task_desc for kw in ["文档", "document", "doc"]):
+            return [ToolPermission.EDIT_DOC]
+
+        # 默认只需要读取权限
+        return [ToolPermission.READ]
+
+    def _log_permission_violation(
+        self,
+        permission: "ToolPermission",
+        reason: str,
+    ) -> None:
+        """
+        记录权限违规
+
+        Args:
+            permission: 缺少的权限
+            reason: 违规原因
+        """
+        try:
+            import json
+            from pathlib import Path
+
+            audit_path = Path(".harnessgenj") / "permission_violations.json"
+            audit_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # 加载现有日志
+            if audit_path.exists():
+                with open(audit_path, "r", encoding="utf-8") as f:
+                    audit_log = json.load(f)
+            else:
+                audit_log = {"violations": [], "stats": {}}
+
+            # 添加记录
+            audit_log["violations"].append({
+                "timestamp": time.time(),
+                "role_id": self.role_id,
+                "role_type": self.role_type.value,
+                "permission": permission.value,
+                "reason": reason,
+                "blocked": True,
+            })
+
+            # 更新统计
+            stats = audit_log.get("stats", {})
+            stats["total_violations"] = stats.get("total_violations", 0) + 1
+            stats[f"{self.role_type.value}_violations"] = stats.get(f"{self.role_type.value}_violations", 0) + 1
+            audit_log["stats"] = stats
+
+            # 保存日志
+            with open(audit_path, "w", encoding="utf-8") as f:
+                json.dump(audit_log, f, ensure_ascii=False, indent=2)
+
+        except Exception:
+            pass  # 审计日志记录失败不影响主流程
 
     def _execute_by_stage_name(self, stage_name: str) -> dict[str, Any]:
         """
