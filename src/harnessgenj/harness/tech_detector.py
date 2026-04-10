@@ -28,6 +28,7 @@ import json
 from pathlib import Path
 from typing import Any
 from pydantic import BaseModel, Field
+from harnessgenj.utils.exception_handler import log_exception
 
 
 class TechStackInfo(BaseModel):
@@ -317,8 +318,8 @@ def _extract_keywords_from_files(project_path: Path) -> str:
             try:
                 content = file_path.read_text(encoding="utf-8", errors="ignore")
                 keywords.append(content)
-            except Exception:
-                pass
+            except Exception as e:
+                log_exception(e, context=f"_collect_keywords {file_name}", level=30)
 
     # 读取 AndroidManifest.xml
     manifest_path = project_path / "app" / "src" / "main" / "AndroidManifest.xml"
@@ -326,8 +327,8 @@ def _extract_keywords_from_files(project_path: Path) -> str:
         try:
             content = manifest_path.read_text(encoding="utf-8", errors="ignore")
             keywords.append(content)
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_collect_keywords AndroidManifest", level=30)
 
     return " ".join(keywords)
 
@@ -353,8 +354,8 @@ def _extract_version_info(project_path: Path) -> dict[str, str]:
             match = re.search(r'requires-python\s*=\s*"([^"]+)"', content)
             if match:
                 versions["python"] = match.group(1)
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_extract_version_info pyproject.toml", level=30)
 
     # Java 版本（从 build.gradle）
     build_gradle = project_path / "build.gradle"
@@ -364,8 +365,8 @@ def _extract_version_info(project_path: Path) -> dict[str, str]:
             match = re.search(r'sourceCompatibility\s*=\s*[\'"]?([^\'"\s]+)', content)
             if match:
                 versions["java"] = match.group(1)
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_extract_version_info build.gradle", level=30)
 
     # Node.js 版本（从 package.json）
     package_json = project_path / "package.json"
@@ -375,8 +376,8 @@ def _extract_version_info(project_path: Path) -> dict[str, str]:
                 data = json.load(f)
                 if "engines" in data and "node" in data["engines"]:
                     versions["node"] = data["engines"]["node"]
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_extract_version_info package.json", level=30)
 
     # Go 版本（从 go.mod）
     go_mod = project_path / "go.mod"
@@ -386,8 +387,8 @@ def _extract_version_info(project_path: Path) -> dict[str, str]:
             match = re.search(r'go\s+(\d+\.\d+)', content)
             if match:
                 versions["go"] = match.group(1)
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_extract_version_info go.mod", level=30)
 
     return versions
 
@@ -428,8 +429,8 @@ def _extract_android_info(project_path: Path) -> dict[str, str]:
             if java_match:
                 info["javaVersion"] = java_match.group(1)
 
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_extract_android_info build.gradle", level=30)
 
     # 读取 build.gradle.kts
     build_gradle_kts = project_path / "app" / "build.gradle.kts"
@@ -449,8 +450,8 @@ def _extract_android_info(project_path: Path) -> dict[str, str]:
             if target_sdk_match:
                 info["targetSdk"] = target_sdk_match.group(1)
 
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_extract_android_info build.gradle.kts", level=30)
 
     return info
 

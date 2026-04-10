@@ -20,6 +20,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any
 
+from harnessgenj.utils.exception_handler import log_exception
+
 
 class HGJMonitor:
     """HarnessGenJ 状态监控器"""
@@ -100,8 +102,8 @@ class HGJMonitor:
                 with open(settings_path, "r", encoding="utf-8") as f:
                     settings = json.load(f)
                 checks["hooks_configured"] = "hooks" in settings
-            except Exception:
-                pass
+            except Exception as e:
+                log_exception(e, context="_check_hooks settings读取", level=30)
 
         # hooks_triggered: 检查 events 目录是否有事件记录
         events_dir = self.workspace / "events"
@@ -117,8 +119,8 @@ class HGJMonitor:
                     if event.get("blocked", False):
                         checks["hooks_blocked"] = True
                         break
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_exception(e, context="_check_hooks event读取", level=30)
 
         # security_check_active: 检查安全检查是否配置
         checks["security_check_active"] = checks["hooks_configured"]
@@ -137,8 +139,8 @@ class HGJMonitor:
                 with open(hybrid_path, "r", encoding="utf-8") as f:
                     hybrid = json.load(f)
                 checks["active_mode_detected"] = "active_mode" in hybrid
-            except Exception:
-                pass
+            except Exception as e:
+                log_exception(e, context="_check_hybrid hybrid_state读取", level=30)
 
         # builtin_fallback_active: 检查 BUILTIN 模式是否激活
         # 如果没有 hooks 触发，BUILTIN 模式应该作为备用
@@ -178,8 +180,8 @@ class HGJMonitor:
                         if role_data.get("score", 0) != 0:
                             checks["score_changes"] = True
                             break
-            except Exception:
-                pass
+            except Exception as e:
+                log_exception(e, context="_check_quality scores读取", level=30)
 
         # patterns_analyzed: 检查失败模式分析
         tracker_path = self.workspace / "failure_patterns.json"
@@ -208,8 +210,8 @@ class HGJMonitor:
                     if task.get("state_history"):
                         checks["state_transitions"] = True
                         break
-            except Exception:
-                pass
+            except Exception as e:
+                log_exception(e, context="_check_task_state state_transitions", level=30)
 
         # reviewing_state_used: 检查是否有任务处于 reviewing 状态
         checks["reviewing_state_used"] = False
@@ -221,8 +223,8 @@ class HGJMonitor:
                     if task.get("state") == "reviewing":
                         checks["reviewing_state_used"] = True
                         break
-            except Exception:
-                pass
+            except Exception as e:
+                log_exception(e, context="_check_task_state reviewing_state", level=30)
 
         return checks
 
@@ -238,8 +240,8 @@ class HGJMonitor:
                 with open(intents_path, "r", encoding="utf-8") as f:
                     intents = json.load(f)
                 checks["intents_identified"] = len(intents.get("records", [])) > 0
-            except Exception:
-                pass
+            except Exception as e:
+                log_exception(e, context="_check_intent_router intents读取", level=30)
 
         # workflow_routed: 检查是否有工作流执行记录
         workflow_path = self.workspace / "workflow_executions.json"
@@ -262,8 +264,8 @@ class HGJMonitor:
                 eden = knowledge.get("eden", {})
                 old = knowledge.get("old", {})
                 checks["knowledge_stored"] = len(eden) > 0 or len(old) > 0
-            except Exception:
-                pass
+            except Exception as e:
+                log_exception(e, context="_check_memory knowledge读取", level=30)
 
         # documents_updated: 检查文档是否有更新
         docs_dir = self.workspace / "documents"
@@ -276,8 +278,8 @@ class HGJMonitor:
                     if len(content) > 200:  # 超过最小模板长度
                         checks["documents_updated"] = True
                         break
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_exception(e, context="_check_memory doc_file读取", level=30)
 
         # hotspots_detected: 检查热点文件
         hotspot_path = self.workspace / "hotspots.json"

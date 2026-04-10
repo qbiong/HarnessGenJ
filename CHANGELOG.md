@@ -5,6 +5,32 @@ All notable changes to HarnessGenJ will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.2] - 2026-04-10
+
+### Added
+- **异常处理工具模块**: 统一的异常处理机制，避免静默吞掉错误
+  - `exception_handler.py`: 提供 `safe_call()`, `log_exception()`, `SafeContext`, `safe_operation` 装饰器
+  - 静默异常从 103 处减少到 45 处（减少 56%）
+  - 支持日志级别配置和堆栈追踪选项
+- **CLI 测试覆盖**: 新增 `test_cli.py` 包含 23 个测试用例
+  - 覆盖 version, init, setup-hooks, develop, fix, team, status, sync 命令
+  - 测试总数从 1007 增加到 1030
+- **并发安全增强**: 为关键数据结构添加线程锁
+  - ScoreManager: 使用 `threading.RLock` 保护 `_scores`, `_events`
+  - MemoryManager: 使用 `threading.RLock` 保护 `_current_task`, `project_info`
+  - 防止多线程环境下的数据损坏
+
+### Changed
+- **异常处理改进**: 7 个关键文件的静默异常替换为日志记录
+  - engine.py (27处), monitor.py (9处), hooks_auto_setup.py (8处)
+  - tech_detector.py (8处), score.py (1处), storage/manager.py (1处)
+  - memory/structured_knowledge.py (5处)
+- **线程安全**: 关键方法的读写操作使用锁保护
+
+### New Files
+- `src/harnessgenj/utils/exception_handler.py` - 异常处理工具模块
+- `tests/test_cli.py` - CLI 测试文件 (23 个测试用例)
+
 ## [1.3.1] - 2026-04-10
 
 ### Added

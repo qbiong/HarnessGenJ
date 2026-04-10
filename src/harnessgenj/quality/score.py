@@ -20,6 +20,9 @@ import json
 import os
 import time
 import logging
+import threading
+
+from harnessgenj.utils.exception_handler import log_exception
 
 logger = logging.getLogger(__name__)
 
@@ -173,6 +176,9 @@ class ScoreManager:
         self._events: list[ScoreEvent] = []
         self._max_events = 1000  # 最多保留1000条事件
 
+        # 线程锁保护关键数据结构
+        self._lock = threading.RLock()
+
         # 加载持久化数据
         self._load()
 
@@ -197,37 +203,42 @@ class ScoreManager:
         Returns:
             角色积分对象
         """
-        if role_id in self._scores:
-            return self._scores[role_id]
+        with self._lock:
+            if role_id in self._scores:
+                return self._scores[role_id]
 
-        score = RoleScore(
-            role_type=role_type,
-            role_id=role_id,
-            role_name=role_name or role_type,
-            score=initial_score,
-        )
-        self._scores[role_id] = score
-        self._save()
-        return score
+            score = RoleScore(
+                role_type=role_type,
+                role_id=role_id,
+                role_name=role_name or role_type,
+                score=initial_score,
+            )
+            self._scores[role_id] = score
+            self._save()
+            return score
 
     def get_score(self, role_id: str) -> RoleScore | None:
         """获取角色积分"""
-        return self._scores.get(role_id)
+        with self._lock:
+            return self._scores.get(role_id)
 
     def get_all_scores(self) -> list[RoleScore]:
         """获取所有角色积分"""
-        return list(self._scores.values())
+        with self._lock:
+            return list(self._scores.values())
 
     def get_scores_by_type(self, role_type: str) -> list[RoleScore]:
         """按类型获取积分"""
-        return [s for s in self._scores.values() if s.role_type == role_type]
+        with self._lock:
+            return [s for s in self._scores.values() if s.role_type == role_type]
 
     def get_score_by_role_type(self, role_type: str) -> RoleScore | None:
         """按类型获取单个积分（取最高分）"""
-        scores = self.get_scores_by_type(role_type)
-        if not scores:
-            return None
-        return max(scores, key=lambda s: s.score)
+        with self._lock:
+            scores = [s for s in self._scores.values() if s.role_type == role_type]
+            if not scores:
+                return None
+            return max(scores, key=lambda s: s.score)
 
     # ==================== 积分变更事件 ====================
 
@@ -552,55 +563,62 @@ class ScoreManager:
         severity: str | None = None,
     ) -> None:
         """应用积分变化"""
-        if role_id not in self._scores:
-            return
+        with self._lock:
+            if role_id not in self._scores:
+                return
 
-        # 更新积分
-        self._scores[role_id].score += delta
-        self._scores[role_id].score = max(0, min(100, self._scores[role_id].score))  # 限制在0-100
-        self._scores[role_id].updated_at = time.time()
+            # 更新积分
+            self._scores[role_id].score += delta
+            self._scores[role_id].score = max(0, min(100, self._scores[role_id].score))  # 限制在0-100
+            self._scores[role_id].updated_at = time.time()
 
-        # 记录事件
-        event = ScoreEvent(
-            role_type=self._scores[role_id].role_type,
-            role_id=role_id,
-            event_type=event_type,
-            delta=delta,
-            reason=reason,
-            task_id=task_id,
-            severity=severity,
-        )
-        self._events.append(event)
+            # 记录事件
+            event = ScoreEvent(
+                role_type=self._scores[role_id].role_type,
+                role_id=role_id,
+                event_type=event_type,
+                delta=delta,
+                reason=reason,
+                task_id=task_id,
+                severity=severity,
+            )
+            self._events.append(event)
 
-        # 限制事件数量
-        if len(self._events) > self._max_events:
-            self._events = self._events[-self._max_events:]
+            # 限制事件数量
+            if len(self._events) > self._max_events:
+                self._events = self._events[-self._max_events:]
 
-        self._save()
+            self._save()
 
-        # 【新增】通知积分变化
+        # 【新增】通知积分变化（在锁外执行避免死锁）
         try:
             from harnessgenj.notify import get_notifier
             notifier = get_notifier()
+            with self._lock:
+                role_type = self._scores[role_id].role_type if role_id in self._scores else ""
+                new_score = self._scores[role_id].score if role_id in self._scores else 0
             notifier.notify_score_change(
                 role_id=role_id,
-                role_type=self._scores[role_id].role_type,
+                role_type=role_type,
                 delta=delta,
                 reason=reason or event_type,
-                new_score=self._scores[role_id].score,
+                new_score=new_score,
             )
-        except Exception:
-            pass  # 通知失败不影响主流程
+        except Exception as e:
+            # 通知失败不影响主流程，记录日志
+            log_exception(e, context="_record_event 通知", level=30)
 
     # ==================== 查询方法 ====================
 
     def get_recent_events(self, limit: int = 50) -> list[ScoreEvent]:
         """获取最近事件"""
-        return self._events[-limit:]
+        with self._lock:
+            return list(self._events[-limit:])
 
     def get_events_by_role(self, role_id: str, limit: int = 50) -> list[ScoreEvent]:
         """获取角色相关事件"""
-        events = [e for e in self._events if e.role_id == role_id]
+        with self._lock:
+            events = [e for e in self._events if e.role_id == role_id]
         return events[-limit:]
 
     def get_events_by_task(self, task_id: str) -> list[ScoreEvent]:

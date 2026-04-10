@@ -18,6 +18,7 @@ Hooks Auto Setup - 自动 Hooks 配置系统
 import os
 import json
 from pathlib import Path
+from harnessgenj.utils.exception_handler import log_exception
 from typing import Any
 
 
@@ -226,7 +227,8 @@ def check_security(content: str, file_path: str = "") -> dict[str, Any]:
     try:
         security_hook.write_text(security_content, encoding="utf-8")
         return True
-    except Exception:
+    except Exception as e:
+        log_exception(e, context="create_security_hook_standalone", level=30)
         return False
 
 
@@ -313,7 +315,8 @@ def append_to_development_log(content: str, context: str = "Hooks") -> bool:
         with open(dev_log_path, "a", encoding="utf-8") as f:
             f.write(entry)
         return True
-    except Exception:
+    except Exception as e:
+        log_exception(e, context="write_to_development_log", level=30)
         return False
 
 
@@ -365,8 +368,8 @@ def trigger_adversarial_review(file_path: str, content: str) -> dict[str, Any]:
             json.dump(event_data, f, ensure_ascii=False, indent=2)
 
         result["review_triggered"] = True
-    except Exception:
-        pass
+    except Exception as e:
+        log_exception(e, context="trigger_adversarial_review 事件写入", level=30)
 
     # 更新积分系统（如果存在）- 保持向后兼容
     try:
@@ -395,8 +398,8 @@ def trigger_adversarial_review(file_path: str, content: str) -> dict[str, Any]:
 
             with open(scores_path, "w", encoding="utf-8") as f:
                 json.dump(scores_data, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+    except Exception as e:
+        log_exception(e, context="trigger_adversarial_review scores更新", level=30)
 
     return result
 
@@ -472,8 +475,8 @@ def handle_pre_tool_use_security() -> int:
                     print(f"[HarnessGenJ Security Warning] {warn}", file=sys.stderr)
                 print("[HarnessGenJ] Suggest using environment variables or key management service for sensitive data", file=sys.stderr)
             return 0
-    except Exception:
-        pass
+    except Exception as e:
+        log_exception(e, context="handle_pre_tool_use_security", level=30)
 
     # 回退到简化检查（当 SecurityHook 不可用时）
     high_risk_patterns = [
@@ -518,8 +521,8 @@ def handle_flush_state() -> int:
                 json.dump(state, f, ensure_ascii=False, indent=2)
 
             print("[HarnessGenJ] 状态已持久化", file=sys.stderr)
-    except Exception:
-        pass
+    except Exception as e:
+        log_exception(e, context="handle_flush_state", level=30)
 
     return 0
 
@@ -550,7 +553,8 @@ if __name__ == "__main__":
     try:
         hook_script.write_text(hook_content, encoding="utf-8")
         return True
-    except Exception:
+    except Exception as e:
+        log_exception(e, context="create_hook_script", level=30)
         return False
 
 
@@ -620,7 +624,8 @@ def update_settings_json(project_dir: Path) -> bool:
         with open(settings_path, "w", encoding="utf-8") as f:
             json.dump(existing_settings, f, ensure_ascii=False, indent=2)
         return True
-    except Exception:
+    except Exception as e:
+        log_exception(e, context="update_settings_json", level=30)
         return False
 
 

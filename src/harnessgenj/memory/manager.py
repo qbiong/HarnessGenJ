@@ -39,6 +39,7 @@ import os
 import json
 import time
 import logging
+import threading
 
 from harnessgenj.memory.heap import (
     MemoryHeap,
@@ -215,6 +216,9 @@ class MemoryManager:
         """
         self.workspace = workspace
 
+        # 线程锁保护关键数据结构
+        self._lock = threading.RLock()
+
         # 核心组件
         self.heap = MemoryHeap()
         self.gc = GarbageCollector()
@@ -274,15 +278,17 @@ class MemoryManager:
             content: 知识内容
             importance: 重要性 (默认最高)
         """
-        self.heap.permanent.store_knowledge(key, content, importance)
-        self.hotspot.record_knowledge_reference(key)
-        self._save()
+        with self._lock:
+            self.heap.permanent.store_knowledge(key, content, importance)
+            self.hotspot.record_knowledge_reference(key)
+            self._save()
 
     def get_knowledge(self, key: str) -> str | None:
         """获取核心知识"""
-        self.hotspot.record_knowledge_reference(key)
-        entry = self.heap.permanent.get_knowledge(key)
-        return entry.content if entry else None
+        with self._lock:
+            self.hotspot.record_knowledge_reference(key)
+            entry = self.heap.permanent.get_knowledge(key)
+            return entry.content if entry else None
 
     def store_document(
         self,
@@ -343,40 +349,44 @@ class MemoryManager:
             task_info: 任务信息
             generator_id: 生成者角色ID
         """
-        entry = MemoryEntry(
-            id=task_id,
-            content=json.dumps(task_info),
-            importance=80,
-            region=MemoryRegion.SURVIVOR_0,
-            generator_id=generator_id,
-        )
-        self.heap.get_active_survivor().put(entry)
-        self._current_task = {"task_id": task_id, **task_info}
+        with self._lock:
+            entry = MemoryEntry(
+                id=task_id,
+                content=json.dumps(task_info),
+                importance=80,
+                region=MemoryRegion.SURVIVOR_0,
+                generator_id=generator_id,
+            )
+            self.heap.get_active_survivor().put(entry)
+            self._current_task = {"task_id": task_id, **task_info}
 
-        # 触发 GC 检查
+        # 触发 GC 检查（在锁外执行）
         self._maybe_gc()
 
     def get_task(self, task_id: str) -> dict[str, Any] | None:
         """获取任务"""
-        entry = self.heap.get_active_survivor().get(task_id)
-        if entry:
-            return json.loads(entry.content)
-        return None
+        with self._lock:
+            entry = self.heap.get_active_survivor().get(task_id)
+            if entry:
+                return json.loads(entry.content)
+            return None
 
     def get_current_task(self) -> dict[str, Any]:
         """获取当前任务"""
-        return self._current_task.copy()
+        with self._lock:
+            return self._current_task.copy()
 
     def clear_task(self, task_id: str) -> bool:
         """清除任务"""
-        self.heap.get_active_survivor().remove(task_id)
-        if self._current_task.get("task_id") == task_id:
-            self._current_task = {}
-            # 删除当前任务文件
-            current_task_path = os.path.join(self.workspace, "current_task.json")
-            if os.path.exists(current_task_path):
-                os.remove(current_task_path)
-        self._save()
+        with self._lock:
+            self.heap.get_active_survivor().remove(task_id)
+            if self._current_task.get("task_id") == task_id:
+                self._current_task = {}
+                # 删除当前任务文件
+                current_task_path = os.path.join(self.workspace, "current_task.json")
+                if os.path.exists(current_task_path):
+                    os.remove(current_task_path)
+            self._save()
         return True
 
     def store_message(self, message: str, role: str = "user", importance: int = 50) -> None:

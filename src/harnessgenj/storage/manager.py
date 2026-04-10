@@ -16,6 +16,7 @@ from enum import Enum
 from harnessgenj.storage.markdown import MarkdownStorage, MarkdownKnowledgeBase
 from harnessgenj.storage.json_store import JsonStorage, TaskStateStorage, ContextStorage
 from harnessgenj.storage.memory import MemoryStorage, MemoryKnowledgeBase
+from harnessgenj.utils.exception_handler import log_exception
 
 
 class StorageType(Enum):
@@ -126,8 +127,9 @@ class WriteBatch:
                 results[file_path] = True
                 self._stats["flushed"] += 1
 
-            except Exception:
+            except Exception as e:
                 results[file_path] = False
+                log_exception(e, context=f"flush_file {file_path}", level=30)
 
         # 调用回调
         if self._on_flush and results:

@@ -48,6 +48,7 @@ from harnessgenj.roles import (
     RoleType,
     create_role,
 )
+from harnessgenj.utils.exception_handler import log_exception, safe_call
 from harnessgenj.workflow import (
     WorkflowCoordinator,
     WorkflowPipeline,
@@ -466,9 +467,9 @@ class Harness:
 
             notifier._emit("━" * 60, NotifierLevel.INFO)
 
-        except Exception:
-            # 主动输出失败不影响框架功能
-            pass
+        except Exception as e:
+            # 主动输出失败不影响框架功能，但记录日志
+            log_exception(e, context="print_framework_guide", level=40)  # logging.DEBUG
 
     @classmethod
     def from_project(
@@ -544,8 +545,9 @@ class Harness:
                         if content.strip():
                             doc_name = os.path.basename(file_path)
                             documents[doc_name] = content
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        # 文件读取失败不影响整体流程
+                        log_exception(e, context=f"读取文档文件 {file_path}", level=30)
 
         # 提取项目名称
         project_name = os.path.basename(project_path)
@@ -709,7 +711,8 @@ class Harness:
             self._dirty_fields.clear()
 
             return True
-        except Exception:
+        except Exception as e:
+            log_exception(e, context="save_state", level=30)
             return False
 
     def _record_intent(self, intent_result: IntentResult) -> None:
@@ -747,8 +750,9 @@ class Harness:
 
             with open(intents_path, "w", encoding="utf-8") as f:
                 json.dump(intents, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass  # 不影响主流程
+        except Exception as e:
+            # 不影响主流程，但记录异常
+            log_exception(e, context="_record_intent", level=30)
 
     def _auto_extract_knowledge(self, task: dict, summary: str) -> None:
         """
@@ -791,8 +795,9 @@ class Harness:
                     entry["value"],
                     important=entry.get("important", False),
                 )
-        except Exception:
-            pass  # 不影响主流程
+        except Exception as e:
+            # 不影响主流程，但记录异常
+            log_exception(e, context="_auto_extract_knowledge", level=30)
 
     def _generate_initial_monitor_report(self) -> None:
         """
@@ -802,8 +807,9 @@ class Harness:
             from harnessgenj.monitor import HGJMonitor
             monitor = HGJMonitor(self._workspace)
             monitor.save_report()
-        except Exception:
-            pass  # 不影响主流程
+        except Exception as e:
+            # 不影响主流程，但记录异常
+            log_exception(e, context="_generate_initial_monitor_report", level=30)
 
     def _mark_dirty(self, field: str, value: Any) -> None:
         """
@@ -1068,9 +1074,9 @@ class Harness:
         try:
             self._task_state_machine.submit_review(task_id, "提交审查")
             self._task_state_machine.complete(task_id, summary)
-        except Exception:
-            # 状态机转换失败，回退到传统方式
-            pass
+        except Exception as e:
+            # 状态机转换失败，回退到传统方式，记录日志
+            log_exception(e, context="_complete_task_internal 状态机转换", level=30)
 
         # 更新任务状态
         task["status"] = "completed"
@@ -1146,14 +1152,14 @@ class Harness:
                 f"📄 文档已更新: progress.md, development.md",
                 "INFO"
             )
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_update_documents_on_task_complete 通知", level=30)
 
         # 4. 触发文档同步（如果有）
         try:
             self._sync_progress_document()
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_sync_progress_document", level=30)
 
     # ==================== 快速开发 ====================
 
@@ -1268,8 +1274,8 @@ class Harness:
         if task_id:
             try:
                 self._task_state_machine.start(task_id)
-            except Exception:
-                pass
+            except Exception as e:
+                log_exception(e, context="develop 状态机启动", level=30)
 
         # Hooks: Pre-Task 检查
         if not admin_override:
@@ -1360,8 +1366,8 @@ class Harness:
             notifier._emit("   请在上下文中执行指令中的操作", "INFO")
             notifier._emit("   完成后调用: harness.complete_task(task_id, '摘要')", "INFO")
             notifier._emit("━" * 60, "INFO")
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="develop 主动输出", level=30)
 
         # 6. 更新活动工作流状态
         Harness._active_workflow_id = "feature"
@@ -1405,8 +1411,8 @@ class Harness:
             pipeline = self.coordinator._workflows.get("feature")
             stages = list(pipeline._stages.keys()) if pipeline else ["requirement", "design", "development", "testing"]
             notifier.notify_workflow_start("feature", stages)
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="develop workflow_start 通知", level=30)
 
         # 广播开发任务开始
         self._collaboration.broadcast(
@@ -1495,8 +1501,8 @@ class Harness:
                                 gate_name="adversarial_review",
                                 reason=f"发现 {adversarial_result.total_issues} 个问题需要修复",
                             )
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log_exception(e, context="develop adversarial_review 通知", level=30)
 
                 except Exception as e:
                     # 对抗审查失败不影响主流程，仅记录
@@ -1518,8 +1524,8 @@ class Harness:
                             gate_name="post_task_hooks",
                             reason=post_result.errors[0] if post_result.errors else "未知错误",
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_exception(e, context="develop post_task_hooks 通知", level=30)
                     return {
                         "request": feature_request,
                         "task_id": task_id,
@@ -1541,8 +1547,8 @@ class Harness:
                     success=True,
                     summary={"score_changes": len(score_changes)}
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                log_exception(e, context="develop workflow_complete 通知", level=30)
 
             # 同步进度文档
             self._sync_progress_document()
@@ -1614,8 +1620,8 @@ class Harness:
         if task_id:
             try:
                 self._task_state_machine.start(task_id)
-            except Exception:
-                pass
+            except Exception as e:
+                log_exception(e, context="fix_bug 状态机启动", level=30)
 
         # Hooks: Pre-Task 检查
         if not admin_override:
@@ -1698,8 +1704,8 @@ class Harness:
             notifier._emit("   请在上下文中执行指令中的操作", "INFO")
             notifier._emit("   完成后调用: harness.complete_task(task_id, '摘要')", "INFO")
             notifier._emit("=" * 50, "INFO")
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="fix_bug 主动输出", level=30)
 
         # 6. 更新活动工作流状态
         Harness._active_workflow_id = "bugfix"
@@ -1782,8 +1788,8 @@ class Harness:
                                 gate_name="adversarial_review",
                                 reason=f"发现 {adversarial_result.total_issues} 个问题需要修复",
                             )
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log_exception(e, context="fix_bug adversarial_review 通知", level=30)
 
                 except Exception as e:
                     result["adversarial_error"] = str(e)
@@ -1805,8 +1811,8 @@ class Harness:
                             gate_name="post_task_hooks",
                             reason=post_result.errors[0] if post_result.errors else "未知错误",
                         )
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        log_exception(e, context="fix_bug post_task_hooks 通知", level=30)
                     return {
                         "bug": bug_description,
                         "task_id": task_id,
@@ -2443,8 +2449,9 @@ harness.analyze_project()
                         TriggerEvent.ON_WRITE_COMPLETE,
                         {"file_path": file_path, "content": code},
                     )
-        except Exception:
-            pass  # 消息处理失败不影响主流程
+        except Exception as e:
+            # 消息处理失败不影响主流程，记录日志
+            log_exception(e, context="_handle_review_request", level=30)
 
     def _handle_hunt_request(self, msg: Any, hunter_id: str) -> None:
         """处理漏洞探测请求消息"""
@@ -2458,8 +2465,8 @@ harness.analyze_project()
                         TriggerEvent.ON_TASK_COMPLETE,
                         {"task_id": task_id},
                     )
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_handle_hunt_request", level=30)
 
     def _handle_test_request(self, msg: Any, tester_id: str) -> None:
         """处理测试请求消息"""
@@ -2473,8 +2480,8 @@ harness.analyze_project()
                         TriggerEvent.ON_TASK_COMPLETE,
                         {"task_id": task_id},
                     )
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_handle_test_request", level=30)
 
     def _sync_progress_document(self) -> None:
         """同步进度文档"""
@@ -2708,8 +2715,8 @@ harness.analyze_project()
                     for kw in keywords:
                         if kw in content or kw in key:
                             return content[:200]
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_get_relevant_knowledge hotspot搜索", level=30)
 
         # 回退：搜索所有知识
         try:
@@ -2722,8 +2729,8 @@ harness.analyze_project()
                     for kw in keywords:
                         if kw in content or kw in key:
                             return content[:200]
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_get_relevant_knowledge heap搜索", level=30)
 
         return None
 
@@ -2879,11 +2886,12 @@ def {feature_request.replace(" ", "_").lower()}():
                         f"📋 跳过级别: {skip_level} ({action})",
                         "INFO"
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                log_exception(e, context="_record_bypass_attempt notifier", level=30)
 
-        except Exception:
-            pass  # 审计日志记录失败不影响主流程
+        except Exception as e:
+            # 审计日志记录失败不影响主流程，记录日志
+            log_exception(e, context="_record_bypass_attempt", level=30)
 
 
 def create_harness(

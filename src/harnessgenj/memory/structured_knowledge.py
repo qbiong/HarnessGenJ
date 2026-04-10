@@ -47,6 +47,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from harnessgenj.utils.exception_handler import log_exception
 from enum import Enum
 from pydantic import BaseModel, Field
 
@@ -372,8 +373,8 @@ class StructuredKnowledgeManager:
                     entry = KnowledgeEntry.from_dict(json.loads(heap_entry.content))
                     self._entries[entry_id] = entry
                     return entry
-                except Exception:
-                    pass
+                except Exception as e:
+                    log_exception(e, context=f"get_entry {entry_id}", level=30)
 
         return None
 
@@ -625,8 +626,8 @@ class StructuredKnowledgeManager:
         try:
             with open(self.index_file, "w", encoding="utf-8") as f:
                 json.dump(self._index.model_dump(), f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            log_exception(e, context="_save_index", level=30)
 
     def _load_index(self) -> None:
         """加载索引"""
@@ -635,7 +636,8 @@ class StructuredKnowledgeManager:
                 with open(self.index_file, "r", encoding="utf-8") as f:
                     index_data = json.load(f)
                 self._index = KnowledgeIndex(**index_data)
-            except Exception:
+            except Exception as e:
+                log_exception(e, context="_load_index", level=30)
                 self._rebuild_index()
 
     def _load_entries_from_heap(self) -> None:
@@ -654,10 +656,10 @@ class StructuredKnowledgeManager:
                                 json.loads(entry.content)
                             )
                             self._entries[knowledge_id] = knowledge_entry
-                        except Exception:
-                            pass
-        except Exception:
-            pass
+                        except Exception as e:
+                            log_exception(e, context=f"_load_entries_from_heap {knowledge_id}", level=30)
+        except Exception as e:
+            log_exception(e, context="_load_entries_from_heap", level=30)
 
     def export_to_markdown(self, output_path: str | Path | None = None) -> str:
         """
