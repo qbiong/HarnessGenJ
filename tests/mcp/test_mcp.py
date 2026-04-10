@@ -35,7 +35,7 @@ from harnessgenj.mcp.tools.storage_tools import STORAGE_TOOLS
 
 # ==================== 测试工具类 ====================
 
-class TestMCPTool(BaseMCPTool):
+class MockMCPTool(BaseMCPTool):
     """测试用工具"""
     name = "test_tool"
     description = "测试工具"
@@ -161,12 +161,12 @@ class TestMCPProtocol:
 
 # ==================== 工具测试 ====================
 
-class TestMCPTools:
+class MockMCPTools:
     """测试 MCP 工具"""
 
     def test_tool_info(self):
         """测试工具信息"""
-        tool = TestMCPTool()
+        tool = MockMCPTool()
         info = tool.get_info()
 
         assert isinstance(info, MCPToolInfo)
@@ -175,20 +175,20 @@ class TestMCPTools:
 
     def test_tool_validate_params_success(self):
         """测试参数验证 - 成功"""
-        tool = TestMCPTool()
+        tool = MockMCPTool()
         errors = tool.validate_params({"message": "test"})
         assert errors == []
 
     def test_tool_validate_params_missing_required(self):
         """测试参数验证 - 缺少必需参数"""
-        tool = TestMCPTool()
+        tool = MockMCPTool()
         errors = tool.validate_params({})
         assert len(errors) > 0
         assert "缺少必需参数" in errors[0]
 
     def test_tool_execute(self):
         """测试工具执行"""
-        tool = TestMCPTool()
+        tool = MockMCPTool()
         mock_harness = Mock()
         result = tool.execute({"message": "Hello"}, mock_harness)
 
@@ -198,7 +198,7 @@ class TestMCPTools:
     def test_tool_registry_register(self):
         """测试工具注册"""
         registry = ToolRegistry()
-        tool = TestMCPTool()
+        tool = MockMCPTool()
         registry.register(tool)
 
         assert registry.has_tool("test_tool")
@@ -207,7 +207,7 @@ class TestMCPTools:
     def test_tool_registry_list(self):
         """测试工具列表"""
         registry = ToolRegistry()
-        tool = TestMCPTool()
+        tool = MockMCPTool()
         registry.register(tool)
 
         tools = registry.list_tools()
@@ -512,7 +512,7 @@ class TestMCPIntegration:
     def test_tool_registration(self):
         """测试工具注册"""
         server = MCPServer()
-        custom_tool = TestMCPTool()
+        custom_tool = MockMCPTool()
         server.register_tool(custom_tool)
 
         tools = server.list_tools()

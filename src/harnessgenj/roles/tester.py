@@ -35,7 +35,7 @@ from harnessgenj.roles.base import (
 )
 
 
-class Tester(AgentRole):
+class TesterRole(AgentRole):
     """
     测试人员 - 验证者角色
 
@@ -49,6 +49,9 @@ class Tester(AgentRole):
     - 决策权限: 测试用例设计、测试范围确定、测试通过/失败判断
     - 禁止行为: 修改生产代码、修改需求文档、修改架构文档
     """
+
+    # Prevent pytest from trying to collect this class as a test
+    __test__ = False
 
     # ==================== 核心职责定义（哲学层面） ====================
 
@@ -274,7 +277,7 @@ def create_tester(
     tester_id: str,
     name: str = "Tester",
     context: RoleContext | None = None,
-) -> Tester:
+) -> TesterRole:
     """
     创建测试人员实例
 
@@ -292,4 +295,8 @@ def create_tester(
         - edit_code: 编辑代码（仅测试代码）
         - terminal: 执行终端命令
     """
-    return Tester(role_id=tester_id, name=name, context=context)
+    return TesterRole(role_id=tester_id, name=name, context=context)
+
+
+# Backward compatibility alias
+Tester = TesterRole

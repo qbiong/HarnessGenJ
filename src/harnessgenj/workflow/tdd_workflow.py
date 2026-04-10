@@ -68,8 +68,10 @@ class TDDConfig(BaseModel):
     coverage_command: str = Field(default="pytest --cov --cov-report=json", description="覆盖率命令")
 
 
-class TestResult(BaseModel):
+class TDDTestResult(BaseModel):
     """测试结果"""
+
+    __test__ = False  # Prevent pytest from trying to collect this class
 
     passed: int = Field(default=0, description="通过测试数")
     failed: int = Field(default=0, description="失败测试数")
@@ -77,6 +79,10 @@ class TestResult(BaseModel):
     errors: list[str] = Field(default_factory=list, description="错误信息")
     duration: float = Field(default=0.0, description="执行时间")
     output: str = Field(default="", description="原始输出")
+
+
+# Backward compatibility alias
+TestResult = TDDTestResult
 
 
 class CoverageReport(BaseModel):

@@ -38,6 +38,7 @@ from pydantic import BaseModel, Field
 import os
 import json
 import time
+import logging
 
 from harnessgenj.memory.heap import (
     MemoryHeap,
@@ -56,6 +57,8 @@ from harnessgenj.memory.structured_knowledge import (
     CodeLocation,
     create_structured_knowledge_manager,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # ==================== 文档系统定义 ====================
@@ -806,8 +809,8 @@ context = harness.get_context_prompt()  # 获取上下文（每次对话开始�
                         "grade": role_score.grade,
                         "success_rate": role_score.success_rate,
                     }
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Failed to get role score: {e}")
 
         # 使用 DOCUMENT_OWNERSHIP 配置进行文档访问控制
         context["documents"] = {}
@@ -857,16 +860,16 @@ context = harness.get_context_prompt()  # 获取上下文（每次对话开始�
                 try:
                     recent_reviews = self._quality_tracker.get_recent_reviews(limit=10)
                     context["recent_reviews"] = recent_reviews
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to get recent reviews: {e}")
 
         elif role_type == "bug_hunter":
             if self._quality_tracker:
                 try:
                     failed_reviews = self._quality_tracker.get_failed_reviews(limit=10)
                     context["historical_issues"] = failed_reviews
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to get failed reviews: {e}")
 
         # 优先加载高质量内容（从 Old 区）
         high_quality_entries = self._get_high_quality_entries()
@@ -951,8 +954,8 @@ context = harness.get_context_prompt()  # 获取上下文（每次对话开始�
                 }
             with open(knowledge_path, "w", encoding="utf-8") as f:
                 json.dump(knowledge_data, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to save knowledge data: {e}")
 
     def _save_document(self, doc_type: str, content: str) -> None:
         """保存文档"""
@@ -960,8 +963,8 @@ context = harness.get_context_prompt()  # 获取上下文（每次对话开始�
             doc_path = os.path.join(self.workspace, "documents", f"{doc_type}.md")
             with open(doc_path, "w", encoding="utf-8") as f:
                 f.write(content)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to save document '{doc_type}': {e}")
 
     def _load(self) -> None:
         """加载持久化数据"""
@@ -973,8 +976,8 @@ context = harness.get_context_prompt()  # 获取上下文（每次对话开始�
                     data = json.load(f)
                 self.project_info = ProjectInfo(**data.get("info", {}))
                 self.project_stats = ProjectStats(**data.get("stats", {}))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to load project info: {e}")
 
         # 加载当前任务
         current_task_path = os.path.join(self.workspace, "current_task.json")
@@ -982,8 +985,8 @@ context = harness.get_context_prompt()  # 获取上下文（每次对话开始�
             try:
                 with open(current_task_path, "r", encoding="utf-8") as f:
                     self._current_task = json.load(f)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to load current task: {e}")
 
         # 加载 Permanent 区知识
         knowledge_path = os.path.join(self.workspace, "knowledge.json")
@@ -997,8 +1000,8 @@ context = harness.get_context_prompt()  # 获取上下文（每次对话开始�
                         value.get("content", ""),
                         value.get("importance", 100)
                     )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning(f"Failed to load knowledge data: {e}")
 
         # 加载文档
         doc_dir = os.path.join(self.workspace, "documents")
@@ -1010,8 +1013,8 @@ context = harness.get_context_prompt()  # 获取上下文（每次对话开始�
                         with open(doc_path, "r", encoding="utf-8") as f:
                             content = f.read()
                         self.store_document(doc_type, content)
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"Failed to load document '{doc_type}': {e}")
 
     def reload(self) -> bool:
         """重新加载"""

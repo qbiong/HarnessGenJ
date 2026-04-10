@@ -30,6 +30,17 @@
         ]
       }
     ],
+    "Notification": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python .claude/harnessgenj_hook.py --intent"
+          }
+        ]
+      }
+    ],
     "Stop": [
       {
         "matcher": "*",

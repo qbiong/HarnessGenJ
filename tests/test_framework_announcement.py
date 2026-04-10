@@ -260,11 +260,11 @@ class TestCLAUDE_mdGuidelines:
 
         content = claude_md.read_text(encoding="utf-8")
 
-        # 检查关键章节
-        assert "框架使用指南" in content or "核心原则" in content
+        # 检查关键章节（支持新旧结构）
+        assert "框架使用指南" in content or "核心原则" in content or "一句话启动框架" in content
         assert "develop" in content
         assert "fix_bug" in content
-        assert "角色边界" in content or "边界定义" in content
+        assert "角色边界" in content or "边界定义" in content or "角色说明" in content
         assert "积分" in content
 
     def test_claude_md_contains_mandatory_declarations(self):

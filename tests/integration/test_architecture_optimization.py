@@ -139,7 +139,6 @@ def test_1_hooks_auto_setup():
         print("  [OK] Idempotency check passed")
 
         print("\n[PASS] Test Scenario 1")
-        return True
 
     finally:
         cleanup_test_workspace(test_dir)
@@ -223,7 +222,6 @@ def test_2_tech_stack_storage():
         print("  [OK] No redundant storage after from_project")
 
         print("\n[PASS] Test Scenario 2")
-        return True
 
     finally:
         cleanup_test_workspace(test_dir)
@@ -340,7 +338,6 @@ def test_3_structured_knowledge_heap():
         print("  [OK] Delete works")
 
         print("\n[PASS] Test Scenario 3")
-        return True
 
     finally:
         cleanup_test_workspace(test_dir)
@@ -427,7 +424,6 @@ def test_4_event_triggers():
         print("  [OK] Event file cleaned up")
 
         print("\n[PASS] Test Scenario 4")
-        return True
 
     finally:
         cleanup_test_workspace(test_dir)
@@ -529,7 +525,6 @@ def test_5_full_development_workflow():
         print("  [OK] Knowledge persisted to Heap")
 
         print("\n[PASS] Test Scenario 5")
-        return True
 
     finally:
         cleanup_test_workspace(test_dir)

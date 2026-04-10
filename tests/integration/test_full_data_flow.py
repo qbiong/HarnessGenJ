@@ -37,7 +37,7 @@ class TestFullDataFlow:
         harness._hybrid_integration.force_mode(IntegrationMode.BUILTIN)
 
         # 执行开发
-        result = harness.develop("实现测试功能", skip_level=SkipLevel.ALL)
+        result = harness.develop("实现测试功能", skip_level=SkipLevel.ALL, execution_mode="simulate")
 
         # 验证任务创建
         assert result["task_id"] is not None

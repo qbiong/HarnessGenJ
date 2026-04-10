@@ -5,6 +5,38 @@ All notable changes to HarnessGenJ will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-04-10
+
+### Added
+- **OperationInstruction 协议**: 框架生成的操作指令供 AI 执行
+  - `OperationInstruction` 类：包含许可文件、执行指令、预期产出
+  - `ExecutionResult` 类：AI 完成操作后报告给框架
+  - 便捷函数：`create_develop_instruction()`, `create_fix_bug_instruction()`
+- **FrameworkSession 会话管理**: 签发操作许可，控制 AI 的修改范围
+  - `grant_permission()`: 签发操作许可
+  - `check_permission()`: 检查权限
+  - `revoke_permission()`: 撤销许可
+- **一句话启动框架**: 用户只需说"使用HGJ框架"即可激活框架
+  - 新增 `framework_activate` 意图检测
+  - 自动初始化框架并引导后续操作
+- **develop()/fix_bug() 指令模式**: 返回操作指令而非模拟结果
+  - 新增 `execution_mode` 参数："instruction" | "simulate"
+  - 默认使用 "instruction" 模式签发许可并生成指令
+
+### Changed
+- **修复核心缺陷**: `develop()` 现在签发操作许可并生成指令，而非只模拟
+- **简化 CLAUDE.md**: 优化用户引导，一句话即可启动框架
+- **更新 Hooks**: 新增框架激活意图检测
+
+### Fixed
+- **FrameworkSession 单例问题**: 修复 Pydantic BaseModel 中类变量被当作私有属性的问题
+- **测试兼容性**: 更新测试以适应新的 CLAUDE.md 结构
+
+### New Files
+- `src/harnessgenj/harness/operation_instruction.py` - 操作指令协议
+- `src/harnessgenj/harness/framework_session.py` - 框架会话管理
+- `.harnessgenj/documents/admin_audit_log.md` - 框架升级审计日志
+
 ## [1.3.0] - 2026-04-09
 
 ### Added

@@ -116,6 +116,14 @@ from harnessgenj.workflow.task_state import (
 )
 from harnessgenj.sync.doc_sync import DocumentSyncManager, SyncConfig, create_sync_manager
 from harnessgenj.workflow.tdd_workflow import TDDWorkflow, TDDConfig, TDDCycle, create_tdd_workflow
+from harnessgenj.harness.framework_session import FrameworkSession, OperationMode
+from harnessgenj.harness.operation_instruction import (
+    OperationInstruction,
+    OperationType,
+    InstructionPriority,
+    create_develop_instruction,
+    create_fix_bug_instruction,
+)
 
 
 # ==================== 流程强制执行配置 ====================
@@ -372,6 +380,10 @@ class Harness:
 
         # 意图识别路由器
         self._intent_router = create_intent_router()
+
+        # ==================== 新增：框架会话管理 ====================
+        # 初始化会话，默认为 DIRECT 模式（无许可）
+        self._framework_session = FrameworkSession.get_instance(workspace)
 
         # 加载之前的工作状态
         if persistent:
@@ -1145,6 +1157,61 @@ class Harness:
 
     # ==================== 快速开发 ====================
 
+    def _analyze_required_files(self, request: str, request_type: str = "feature") -> list[str]:
+        """
+        分析任务所需的文件（简化实现）
+
+        Args:
+            request: 需求描述
+            request_type: 请求类型
+
+        Returns:
+            建议修改的文件列表
+        """
+        # 简化实现：基于关键词推断可能需要的文件
+        # 实际项目中可以使用更复杂的分析
+        suggested_files = []
+
+        # 从需求中提取可能的模块名
+        keywords = request.lower().split()
+        for kw in keywords:
+            if kw in ["用户", "user", "auth", "认证", "登录"]:
+                suggested_files.extend([
+                    "src/harnessgenj/auth/",
+                    "src/harnessgenj/models/user.py",
+                ])
+            elif kw in ["存储", "storage", "memory", "记忆"]:
+                suggested_files.extend([
+                    "src/harnessgenj/memory/",
+                    "src/harnessgenj/storage/",
+                ])
+            elif kw in ["工作流", "workflow", "流程"]:
+                suggested_files.extend([
+                    "src/harnessgenj/workflow/",
+                ])
+            elif kw in ["角色", "role", "agent"]:
+                suggested_files.extend([
+                    "src/harnessgenj/roles/",
+                ])
+            elif kw in ["测试", "test"]:
+                suggested_files.extend([
+                    "tests/",
+                ])
+            elif kw in ["框架", "framework", "session", "集成"]:
+                suggested_files.extend([
+                    "src/harnessgenj/harness/",
+                ])
+
+        # 默认包含核心目录
+        if not suggested_files:
+            suggested_files = [
+                "src/harnessgenj/",
+                "tests/",
+            ]
+
+        # 去重
+        return list(set(suggested_files))
+
     def develop(
         self,
         feature_request: str,
@@ -1152,6 +1219,7 @@ class Harness:
         use_tdd: bool = False,
         skip_level: SkipLevel = SkipLevel.NONE,
         admin_override: bool = False,
+        execution_mode: str = "instruction",  # "instruction" | "simulate"
     ) -> dict[str, Any]:
         """
         快速开发功能
@@ -1161,13 +1229,28 @@ class Harness:
             use_tdd: 是否使用 TDD 模式（需要 TDD 工作流支持）
             skip_level: 跳过级别（控制可跳过的检查项）
             admin_override: 管理员覆盖（允许跳过强制检查，会记录审计日志）
+            execution_mode: 执行模式
+                - "instruction": 生成操作指令，供 AI 执行（推荐）
+                - "simulate": 执行模拟工作流（旧模式，不产出代码）
 
         Returns:
             开发结果
 
         Note:
-            强制检查项（adversarial_review, security_check, boundary_check）不可跳过，
-            除非明确设置 admin_override=True。所有跳过操作都会被记录到审计日志。
+            推荐使用 execution_mode="instruction"（默认），框架会签发操作许可并生成指令。
+            AI 在收到指令后，在许可范围内执行代码修改，完成后调用 complete_task()。
+
+        示例:
+            # 正确用法
+            result = harness.develop("实现用户登录功能")
+            # 查看操作指令
+            instruction = result.get("instruction")
+            print(instruction.get("to_prompt")() if callable(instruction.get("to_prompt")) else instruction)
+
+            # 执行指令中的操作...
+
+            # 完成后报告
+            harness.complete_task(result["task_id"], "功能已完成")
         """
         task_info = self.receive_request(feature_request, request_type="feature")
         task_id = task_info.get("task_id")
@@ -1182,15 +1265,13 @@ class Harness:
             )
 
         # ==================== 新增：启动任务状态流转 ====================
-        # 将任务状态从 pending → in_progress
         if task_id:
             try:
                 self._task_state_machine.start(task_id)
             except Exception:
-                pass  # 状态转换失败不影响主流程
+                pass
 
-        # Hooks: Pre-Task 检查（开发前验证）
-        # 强制检查项不可跳过（除非管理员覆盖）
+        # Hooks: Pre-Task 检查
         if not admin_override:
             pre_result = self._hooks_integration.run_pre_task({
                 "request": feature_request,
@@ -1205,11 +1286,109 @@ class Harness:
                     "errors": pre_result.errors,
                     "blocked_by": pre_result.blocked_by,
                 }
-        elif skip_level == SkipLevel.NONE:
-            # admin_override=True 但 skip_level=NONE，仍执行强制检查
-            # 只有可选 Hooks 可跳过
+
+        # ==================== 新增：指令模式（推荐） ====================
+        if execution_mode == "instruction":
+            return self._develop_with_instruction(feature_request, task_id, admin_override)
+
+        # ==================== 旧模式：模拟工作流（向后兼容） ====================
+        # 以下是原有的模拟逻辑
+        return self._develop_simulate(feature_request, task_id, use_tdd, skip_level, admin_override)
+
+    def _develop_with_instruction(
+        self,
+        feature_request: str,
+        task_id: str | None,
+        admin_override: bool,
+    ) -> dict[str, Any]:
+        """
+        开发功能 - 指令模式（推荐）
+
+        生成操作指令供 AI 执行，而非模拟工作流。
+
+        流程:
+        1. 分析需要的文件
+        2. 签发操作许可
+        3. 生成操作指令
+        4. 返回指令等待 AI 执行
+
+        Args:
+            feature_request: 功能需求
+            task_id: 任务ID
+            admin_override: 管理员覆盖
+
+        Returns:
+            包含操作指令的结果
+        """
+        # 1. 分析需要的文件
+        permitted_files = self._analyze_required_files(feature_request, "feature")
+
+        # 2. 签发操作许可
+        if task_id:
+            self._framework_session.grant_permission(
+                task_id=task_id,
+                file_paths=permitted_files,
+                operation="write",
+                reason=f"开发功能: {feature_request[:100]}",
+            )
+
+        # 3. 获取上下文
+        context = {
+            "project_name": self.project_name,
+            "tech_stack": self.memory.project_info.tech_stack if hasattr(self.memory, 'project_info') else "未知",
+            "task_id": task_id,
+            "session_id": self._framework_session.session_id,
+        }
+
+        # 4. 创建操作指令
+        instruction = create_develop_instruction(
+            task_id=task_id or "unknown",
+            feature_request=feature_request,
+            permitted_files=permitted_files,
+            context=context,
+        )
+
+        # 5. 通知用户
+        try:
+            from harnessgenj.notify import get_notifier
+            notifier = get_notifier()
+            notifier._emit("━" * 60, "INFO")
+            notifier._emit("📋 操作指令已生成", "INFO")
+            notifier._emit(f"   任务ID: {task_id}", "INFO")
+            notifier._emit(f"   许可文件数: {len(permitted_files)}", "INFO")
+            notifier._emit("", "INFO")
+            notifier._emit("   请在上下文中执行指令中的操作", "INFO")
+            notifier._emit("   完成后调用: harness.complete_task(task_id, '摘要')", "INFO")
+            notifier._emit("━" * 60, "INFO")
+        except Exception:
             pass
 
+        # 6. 更新活动工作流状态
+        Harness._active_workflow_id = "feature"
+
+        return {
+            "request": feature_request,
+            "task_id": task_id,
+            "status": "awaiting_execution",  # 等待 AI 执行
+            "instruction": instruction.model_dump(),
+            "instruction_prompt": instruction.to_prompt(),
+            "permitted_files": permitted_files,
+            "message": "请在上下文中执行上述操作指令，完成后调用 complete_task()",
+        }
+
+    def _develop_simulate(
+        self,
+        feature_request: str,
+        task_id: str | None,
+        use_tdd: bool,
+        skip_level: SkipLevel,
+        admin_override: bool,
+    ) -> dict[str, Any]:
+        """
+        开发功能 - 模拟模式（旧模式，向后兼容）
+
+        执行模拟工作流，不产出实际代码。
+        """
         # 确保有开发团队
         if not self.coordinator.get_roles_by_type(RoleType.DEVELOPER):
             self.coordinator.create_role(RoleType.DEVELOPER, "dev_auto", "开发人员")
@@ -1392,6 +1571,7 @@ class Harness:
         *,
         skip_level: SkipLevel = SkipLevel.NONE,
         admin_override: bool = False,
+        execution_mode: str = "instruction",  # "instruction" | "simulate"
     ) -> dict[str, Any]:
         """
         快速修复 Bug
@@ -1400,13 +1580,23 @@ class Harness:
             bug_description: Bug 描述
             skip_level: 跳过级别（控制可跳过的检查项）
             admin_override: 管理员覆盖（允许跳过强制检查，会记录审计日志）
+            execution_mode: 执行模式
+                - "instruction": 生成操作指令，供 AI 执行（推荐）
+                - "simulate": 执行模拟工作流（旧模式，不产出代码）
 
         Returns:
             修复结果
 
         Note:
-            强制检查项（adversarial_review, security_check, boundary_check）不可跳过，
-            除非明确设置 admin_override=True。所有跳过操作都会被记录到审计日志。
+            推荐使用 execution_mode="instruction"（默认），框架会签发操作许可并生成指令。
+
+        示例:
+            result = harness.fix_bug("修复登录验证问题")
+            # 查看操作指令
+            instruction = result.get("instruction")
+            # 执行指令中的操作...
+            # 完成后报告
+            harness.complete_task(result["task_id"], "Bug已修复")
         """
         task_info = self.receive_request(bug_description, request_type="bug")
         task_id = task_info.get("task_id")
@@ -1421,15 +1611,13 @@ class Harness:
             )
 
         # ==================== 新增：启动任务状态流转 ====================
-        # 将任务状态从 pending → in_progress
         if task_id:
             try:
                 self._task_state_machine.start(task_id)
             except Exception:
-                pass  # 状态转换失败不影响主流程
+                pass
 
-        # Hooks: Pre-Task 检查（修复前验证）
-        # 强制检查项不可跳过（除非管理员覆盖）
+        # Hooks: Pre-Task 检查
         if not admin_override:
             pre_result = self._hooks_integration.run_pre_task({
                 "request": bug_description,
@@ -1444,6 +1632,98 @@ class Harness:
                     "errors": pre_result.errors,
                 }
 
+        # ==================== 新增：指令模式（推荐） ====================
+        if execution_mode == "instruction":
+            return self._fix_bug_with_instruction(bug_description, task_id, admin_override)
+
+        # ==================== 旧模式：模拟工作流（向后兼容） ====================
+        return self._fix_bug_simulate(bug_description, task_id, skip_level, admin_override)
+
+    def _fix_bug_with_instruction(
+        self,
+        bug_description: str,
+        task_id: str | None,
+        admin_override: bool,
+    ) -> dict[str, Any]:
+        """
+        Bug修复 - 指令模式（推荐）
+
+        生成操作指令供 AI 执行。
+
+        Args:
+            bug_description: Bug 描述
+            task_id: 任务ID
+            admin_override: 管理员覆盖
+
+        Returns:
+            包含操作指令的结果
+        """
+        # 1. 分析需要的文件
+        permitted_files = self._analyze_required_files(bug_description, "bug")
+
+        # 2. 签发操作许可
+        if task_id:
+            self._framework_session.grant_permission(
+                task_id=task_id,
+                file_paths=permitted_files,
+                operation="write",
+                reason=f"Bug修复: {bug_description[:100]}",
+            )
+
+        # 3. 获取上下文
+        context = {
+            "project_name": self.project_name,
+            "tech_stack": self.memory.project_info.tech_stack if hasattr(self.memory, 'project_info') else "未知",
+            "task_id": task_id,
+            "session_id": self._framework_session.session_id,
+        }
+
+        # 4. 创建操作指令
+        instruction = create_fix_bug_instruction(
+            task_id=task_id or "unknown",
+            bug_description=bug_description,
+            permitted_files=permitted_files,
+            context=context,
+        )
+
+        # 5. 通知用户
+        try:
+            from harnessgenj.notify import get_notifier
+            notifier = get_notifier()
+            notifier._emit("=" * 50, "INFO")
+            notifier._emit("BUG修复指令已生成", "INFO")
+            notifier._emit(f"   任务ID: {task_id}", "INFO")
+            notifier._emit(f"   许可文件数: {len(permitted_files)}", "INFO")
+            notifier._emit("", "INFO")
+            notifier._emit("   请在上下文中执行指令中的操作", "INFO")
+            notifier._emit("   完成后调用: harness.complete_task(task_id, '摘要')", "INFO")
+            notifier._emit("=" * 50, "INFO")
+        except Exception:
+            pass
+
+        # 6. 更新活动工作流状态
+        Harness._active_workflow_id = "bugfix"
+
+        return {
+            "bug": bug_description,
+            "task_id": task_id,
+            "status": "awaiting_execution",
+            "instruction": instruction.model_dump(),
+            "instruction_prompt": instruction.to_prompt(),
+            "permitted_files": permitted_files,
+            "message": "请在上下文中执行上述操作指令，完成后调用 complete_task()",
+        }
+
+    def _fix_bug_simulate(
+        self,
+        bug_description: str,
+        task_id: str | None,
+        skip_level: SkipLevel,
+        admin_override: bool,
+    ) -> dict[str, Any]:
+        """
+        Bug修复 - 模拟模式（旧模式，向后兼容）
+        """
         if not self.coordinator.get_roles_by_type(RoleType.DEVELOPER):
             self.coordinator.create_role(RoleType.DEVELOPER, "dev_auto", "开发人员")
         if not self.coordinator.get_roles_by_type(RoleType.TESTER):

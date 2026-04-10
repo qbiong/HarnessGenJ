@@ -19,6 +19,9 @@ from enum import Enum
 import json
 import os
 import time
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ScoreEvent(BaseModel):
@@ -682,8 +685,8 @@ class ScoreManager:
 
             with open(data_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to save score data: {e}")
 
     def _load(self) -> None:
         """从文件加载"""
@@ -702,8 +705,8 @@ class ScoreManager:
             # 加载事件
             for edata in data.get("events", []):
                 self._events.append(ScoreEvent(**edata))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to load score data: {e}")
 
     def reset(self, role_id: str | None = None) -> None:
         """
