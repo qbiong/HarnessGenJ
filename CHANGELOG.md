@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.4.4] - 2026-04-11
 
+### Added - HGJ 模块引入指南
+
+**新项目引入流程**：
+- 新增 [HGJ_Integration_Guide.md](docs/HGJ_Integration_Guide.md) 完整引入指南
+- Step 1: 创建 `.harnessgenj/` 目录结构
+- Step 2: 创建 CLAUDE.md 项目级指令
+- Step 3: 框架初始化 `Harness.from_project(".")`
+- Step 4: 一句话启动 "使用HGJ框架"
+
+**HGJ 与 Claude Code 原生多智能体关系分析**：
+- ✅ **无冲突，互补增强**
+- HGJ 是增强层，而非替代 Claude Code 原生 Agent
+- 技术栈独立（Python vs TypeScript），不冲突
+- 功能互补：HGJ 用于开发任务，原生 Agent 用于通用任务
+- Hooks 协同：HGJ 挂载到原生 Hooks
+
 ### Fixed - 测试验证BUG修复
 
 **Shutdown Protocol 实时状态检测**：

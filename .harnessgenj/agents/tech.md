@@ -6,7 +6,7 @@
 ## 主要技术
 
 - **语言**: Python
-- **框架**: React, Vue, Django, FastAPI, Flask, pytest
+- **框架**: Vue, FastAPI, React, Django, pytest, Flask
 - **包管理器**: poetry
 
 ## 版本要求
