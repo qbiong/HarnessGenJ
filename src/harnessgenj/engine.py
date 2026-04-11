@@ -803,8 +803,8 @@ harness = Harness.from_project(".")
 status = harness.get_status()
 print(f"""
 ✅ HGJ框架已就绪
-   项目: {status['project']}
-   团队: {status['team']['size']} 个角色
+   项目: {{status['project']}}
+   团队: {{status['team']['size']}} 个角色
 
 📋 您可以直接说：
    - "实现XXX功能"
@@ -843,8 +843,8 @@ print(f"""
 result = harness.develop("功能描述")
 
 # 2. 查看操作指令
-print(f"任务ID: {result['task_id']}")
-print(f"许可文件: {result['permitted_files']}")
+print(f"任务ID: {{result['task_id']}}")
+print(f"许可文件: {{result['permitted_files']}}")
 
 # 3. 在许可范围内执行代码修改
 # ... 编写代码 ...
@@ -931,6 +931,33 @@ harness.complete_task(result['task_id'], "功能已完成")
             return True
         except Exception as e:
             log_exception(e, context="save_state", level=30)
+            return False
+
+    def _load_state(self) -> bool:
+        """加载之前的工作状态"""
+        if not self._persistent:
+            return False
+
+        try:
+            state_path = os.path.join(self._workspace, "state.json")
+
+            if not os.path.exists(state_path):
+                return False
+
+            with open(state_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            # 加载项目名称
+            if "project_name" in data:
+                self.project_name = data["project_name"]
+
+            # 加载统计数据
+            if "stats" in data:
+                self._stats = self._stats.__class__(**data["stats"])
+
+            return True
+        except (json.JSONDecodeError, KeyError, FileNotFoundError) as e:
+            log_exception(e, context="load_state", level=30)
             return False
 
     def _record_intent(self, intent_result: IntentResult) -> None:

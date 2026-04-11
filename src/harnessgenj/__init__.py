@@ -13,7 +13,7 @@ A Harness Engineering Framework for AI Agent Collaboration
 - 一键执行: 快速完成功能开发/Bug修复
 """
 
-__version__ = "1.4.6"
+__version__ = "1.5.0"
 
 # 主入口
 from harnessgenj.engine import Harness, create_harness
@@ -196,6 +196,52 @@ from harnessgenj.workflow.shutdown_protocol import (
     request_shutdown,
 )
 
+# Workflow - Task Queue & Scheduler (自主执行系统)
+from harnessgenj.workflow.task_queue import (
+    TaskQueue,
+    TaskQueueEntry,
+    TaskQueueStatus,
+    TaskQueueStats,
+    Priority,
+    create_task_queue,
+)
+from harnessgenj.workflow.task_scheduler import (
+    TaskScheduler,
+    SchedulerState,
+    SchedulerConfig,
+    SchedulerStats,
+    create_task_scheduler,
+)
+from harnessgenj.workflow.daemon import (
+    DaemonWorker,
+    DaemonStatus,
+    DaemonConfig,
+    DaemonHealth,
+    create_daemon_worker,
+)
+
+# Evolution Module - 自我进化系统
+from harnessgenj.evolution import (
+    PatternExtractor,
+    ExtractedPattern,
+    PatternType,
+    create_pattern_extractor,
+    SkillAccumulator,
+    RoleSkill,
+    SkillType,
+    create_skill_accumulator,
+    KnowledgeFeedback,
+    FeedbackRecord,
+    FeedbackStatus,
+    create_knowledge_feedback,
+    TokenOptimizer,
+    InlineCandidate,
+    TokenSavingsReport,
+    create_token_optimizer,
+    SkillRegistry,
+    create_skill_registry,
+)
+
 __all__ = [
     # 主入口
     "Harness",
@@ -339,4 +385,40 @@ __all__ = [
     "ShutdownStatus",
     "create_shutdown_protocol",
     "request_shutdown",
+    # Workflow - Task Queue & Scheduler (自主执行系统)
+    "TaskQueue",
+    "TaskQueueEntry",
+    "TaskQueueStatus",
+    "TaskQueueStats",
+    "Priority",
+    "create_task_queue",
+    "TaskScheduler",
+    "SchedulerState",
+    "SchedulerConfig",
+    "SchedulerStats",
+    "create_task_scheduler",
+    "DaemonWorker",
+    "DaemonStatus",
+    "DaemonConfig",
+    "DaemonHealth",
+    "create_daemon_worker",
+    # Evolution - 自我进化系统
+    "PatternExtractor",
+    "ExtractedPattern",
+    "PatternType",
+    "create_pattern_extractor",
+    "SkillAccumulator",
+    "RoleSkill",
+    "SkillType",
+    "create_skill_accumulator",
+    "KnowledgeFeedback",
+    "FeedbackRecord",
+    "FeedbackStatus",
+    "create_knowledge_feedback",
+    "TokenOptimizer",
+    "InlineCandidate",
+    "TokenSavingsReport",
+    "create_token_optimizer",
+    "SkillRegistry",
+    "create_skill_registry",
 ]

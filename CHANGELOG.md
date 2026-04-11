@@ -5,6 +5,53 @@ All notable changes to HarnessGenJ will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-04-11
+
+### Added - 核心能力扩展：自主执行与自我进化
+
+**自主持续执行系统**（新增模块）：
+- [task_queue.py](src/harnessgenj/workflow/task_queue.py): 任务队列管理器
+  - `TaskQueue`: 优先级队列（P0 Bug > P1 Feature > P2 Task）
+  - `TaskQueueEntry`: 任务条目数据模型
+  - 依赖关系检查、持久化存储、状态分区管理
+
+- [task_scheduler.py](src/harnessgenj/workflow/task_scheduler.py): 任务调度器
+  - `TaskScheduler`: 后台守护线程持续监控
+  - 自动扫描 pending 状态任务
+  - 优先级调度、依赖检查、自动分配角色
+  - 与 ShutdownProtocol 集成关闭审批
+
+- [daemon.py](src/harnessgenj/workflow/daemon.py): 后台守护进程
+  - `DaemonWorker`: 持续监控循环
+  - 健康检查和自动恢复
+  - 优雅关闭、信号处理
+
+**自我进化系统**（新增模块）：
+- [evolution/](src/harnessgenj/evolution/): 自我进化模块目录
+  - `PatternExtractor`: 从成功解决方案提取可复用模式
+  - `SkillAccumulator`: 模式转换为技能定义并存储
+  - `KnowledgeFeedback`: 对抗审查结果反馈到知识验证
+  - `TokenOptimizer`: 高频模式内联减少 token 消耗
+  - `SkillRegistry`: 技能注册和发现管理
+
+**设计理念**：
+- 无需人工干预：AI 自动读取未完成任务并驱动角色执行
+- 持续进化：从成功经验中学习，形成可复用的 Skill
+- Token 优化：高频模式自动内联，减少知识检索开销
+
+### Fixed - engine.py 问题修复
+
+- 添加缺失的 `_load_state()` 方法（state.json 加载）
+- 修复 `_get_full_claude_md_content()` 中嵌套 f-string 转义问题
+
+### Testing
+
+- 测试总数：1144
+- 通过率：100%
+- 执行时间：4.46秒
+- 新增模块：workflow (task_queue, task_scheduler, daemon)
+- 新增模块：evolution (pattern_extractor, skill_accumulator, knowledge_feedback, token_optimizer, skill_registry)
+
 ## [1.4.6] - 2026-04-11
 
 ### Fixed - 新项目引入关键问题修复

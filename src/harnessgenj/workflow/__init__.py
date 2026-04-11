@@ -130,6 +130,28 @@ from harnessgenj.workflow.shutdown_protocol import (
     create_shutdown_protocol,
     request_shutdown,
 )
+from harnessgenj.workflow.task_queue import (
+    TaskQueue,
+    TaskQueueEntry,
+    TaskQueueStatus,
+    TaskQueueStats,
+    Priority,
+    create_task_queue,
+)
+from harnessgenj.workflow.task_scheduler import (
+    TaskScheduler,
+    SchedulerState,
+    SchedulerConfig,
+    SchedulerStats,
+    create_task_scheduler,
+)
+from harnessgenj.workflow.daemon import (
+    DaemonWorker,
+    DaemonStatus,
+    DaemonConfig,
+    DaemonHealth,
+    create_daemon_worker,
+)
 
 __all__ = [
     # Pipeline Core
@@ -213,6 +235,25 @@ __all__ = [
     "ShutdownStatus",
     "create_shutdown_protocol",
     "request_shutdown",
+    # Task Queue
+    "TaskQueue",
+    "TaskQueueEntry",
+    "TaskQueueStatus",
+    "TaskQueueStats",
+    "Priority",
+    "create_task_queue",
+    # Task Scheduler
+    "TaskScheduler",
+    "SchedulerState",
+    "SchedulerConfig",
+    "SchedulerStats",
+    "create_task_scheduler",
+    # Daemon Worker
+    "DaemonWorker",
+    "DaemonStatus",
+    "DaemonConfig",
+    "DaemonHealth",
+    "create_daemon_worker",
     # New Workflows
     "create_intent_pipeline",
     "create_development_pipeline",
